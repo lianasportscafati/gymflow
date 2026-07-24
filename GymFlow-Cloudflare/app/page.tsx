@@ -21,6 +21,7 @@ type Week = {
   name: string;
   accent: string;
   position: number;
+  completed: boolean;
 };
 
 const emptyDraft = (week: number): ExerciseDraft => ({
@@ -39,6 +40,7 @@ export default function Home() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [updatingWeekId, setUpdatingWeekId] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null);
@@ -243,6 +245,28 @@ export default function Home() {
     }
   };
 
+  const toggleWeekCompleted = async (week: Week) => {
+    setUpdatingWeekId(week.id);
+    setError("");
+    try {
+      const response = await fetch(`/api/weeks/${week.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: !week.completed }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Aggiornamento non riuscito");
+      setWeeks((current) =>
+        current.map((item) => (item.id === week.id ? data.week : item)),
+      );
+      setToast(data.week.completed ? "Settimana completata" : "Settimana riaperta");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore imprevisto");
+    } finally {
+      setUpdatingWeekId(null);
+    }
+  };
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -259,7 +283,7 @@ export default function Home() {
             <button aria-label="Aggiungi settimana" onClick={openWeekCreate} type="button">＋</button>
           </div>
           {weeks.map((week) => (
-            <div className={`week-nav-row ${activeWeek === week.id ? "selected" : ""}`} key={week.id}>
+            <div className={`week-nav-row ${activeWeek === week.id ? "selected" : ""} ${week.completed ? "completed" : ""}`} key={week.id}>
               <button
                 className={`nav-item week-link ${activeWeek === week.id ? "selected" : ""}`}
                 onClick={() => setActiveWeek(week.id)}
@@ -267,6 +291,7 @@ export default function Home() {
               >
                 <span className="week-dot" style={{ backgroundColor: week.accent }} />
                 <span className="week-name">{week.name}</span>
+                {week.completed && <span className="week-check" aria-label="Completata">✓</span>}
                 <span className="side-count">
                   {exercises.filter((item) => item.week === week.id).length}
                 </span>
@@ -329,18 +354,18 @@ export default function Home() {
           {weeks.map((week) => (
             <button
               aria-selected={activeWeek === week.id}
-              className={activeWeek === week.id ? "active" : ""}
+              className={`${activeWeek === week.id ? "active" : ""} ${week.completed ? "completed" : ""}`}
               key={week.id}
               onClick={() => setActiveWeek(week.id)}
               role="tab"
             >
-              {week.name}
+              {week.completed ? `✓ ${week.name}` : week.name}
             </button>
           ))}
           <button aria-label="Aggiungi settimana" className="mobile-week-add" onClick={openWeekCreate}>＋</button>
         </div>
 
-        <section className="week-section">
+        <section className={`week-section ${activeWeekData?.completed ? "completed" : ""}`}>
           <div className="section-heading">
             <div>
               <span
@@ -357,6 +382,20 @@ export default function Home() {
                 <span className="exercise-count">
                   {currentExercises.length} {currentExercises.length === 1 ? "esercizio" : "esercizi"}
                 </span>
+                <label
+                  className={`week-complete-button ${activeWeekData.completed ? "completed" : ""}`}
+                >
+                  <input
+                    aria-label={`Contrassegna ${activeWeekData.name} come completata`}
+                    checked={activeWeekData.completed}
+                    disabled={updatingWeekId === activeWeekData.id}
+                    onChange={() => toggleWeekCompleted(activeWeekData)}
+                    type="checkbox"
+                  />
+                  {updatingWeekId === activeWeekData.id
+                    ? "Salvataggio…"
+                    : "Completata"}
+                </label>
                 <button onClick={() => openWeekEdit(activeWeekData)} type="button">Rinomina</button>
                 <button className="delete-week" onClick={() => setWeekToDelete(activeWeekData)} type="button">Elimina</button>
               </div>

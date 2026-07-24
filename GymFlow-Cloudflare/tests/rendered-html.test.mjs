@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
 const developmentPreviewMeta =
@@ -30,4 +31,17 @@ test("renders development preview metadata", async () => {
     /^text\/html\b/i,
   );
   assert.match(await response.text(), developmentPreviewMeta);
+});
+
+test("includes the visible Completata checkbox in the production client", async () => {
+  const assetsDirectory = new URL("../dist/client/assets/", import.meta.url);
+  const files = await readdir(assetsDirectory);
+  const javascript = await Promise.all(
+    files
+      .filter((file) => file.endsWith(".js"))
+      .map((file) => readFile(new URL(file, assetsDirectory), "utf8")),
+  );
+  const bundle = javascript.join("\n");
+  assert.match(bundle, /type:[`"']checkbox[`"']/);
+  assert.match(bundle, /Completata/);
 });
