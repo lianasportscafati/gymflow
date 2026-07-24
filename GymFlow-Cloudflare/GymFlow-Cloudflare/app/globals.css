@@ -226,27 +226,41 @@ h1, h2, h3, p { margin-top: 0; }
 .section-heading h2 { font-size: 18px; letter-spacing: -.025em; margin: 0; }
 .exercise-count { color: #8c9089; font-size: 10px; }
 .week-heading-actions { align-items: center; display: flex; gap: 8px; }
-.week-heading-actions button {
+.week-heading-actions button,
+.week-heading-actions .week-complete-button {
+  align-items: center;
   background: white;
   border: 1px solid var(--line);
   border-radius: 7px;
   color: #73776f;
   cursor: pointer;
+  display: inline-flex;
   font-size: 9px;
   font-weight: 750;
+  gap: 7px;
   padding: 7px 9px;
 }
-.week-heading-actions button:hover { border-color: #bfc3b8; color: var(--ink); }
+.week-heading-actions button:hover,
+.week-heading-actions .week-complete-button:hover { border-color: #bfc3b8; color: var(--ink); }
 .week-heading-actions button:disabled { cursor: wait; opacity: .65; }
-.week-heading-actions button.week-complete-button {
+.week-heading-actions .week-complete-button:has(input:disabled) { cursor: wait; opacity: .65; }
+.week-heading-actions .week-complete-button {
   background: #f3f5ef;
   color: #52603d;
 }
-.week-heading-actions button.week-complete-button:hover {
+.week-heading-actions .week-complete-button input {
+  accent-color: #709a21;
+  cursor: pointer;
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+.week-heading-actions .week-complete-button:has(input:disabled) input { cursor: wait; }
+.week-heading-actions .week-complete-button:hover {
   background: #eaf6d2;
   border-color: #b7d279;
 }
-.week-heading-actions button.week-complete-button.completed {
+.week-heading-actions .week-complete-button.completed {
   background: var(--lime);
   border-color: #a9d74f;
   color: #263216;
@@ -416,7 +430,8 @@ input:focus, textarea:focus, select:focus { border-color: #879b59; box-shadow: 0
   .week-heading-actions .exercise-count { display: none; }
   .week-heading-actions { gap: 4px; width: 100%; }
   .week-heading-actions .week-complete-button { flex: 1; }
-  .week-heading-actions button { padding: 6px 7px; }
+  .week-heading-actions button,
+  .week-heading-actions .week-complete-button { min-height: 34px; padding: 6px 7px; }
   .form-grid { grid-template-columns: 1fr; }
   .form-grid label.full { grid-column: auto; }
   .modal { padding: 21px; }

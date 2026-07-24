@@ -382,19 +382,20 @@ export default function Home() {
                 <span className="exercise-count">
                   {currentExercises.length} {currentExercises.length === 1 ? "esercizio" : "esercizi"}
                 </span>
-                <button
-                  aria-pressed={activeWeekData.completed}
+                <label
                   className={`week-complete-button ${activeWeekData.completed ? "completed" : ""}`}
-                  disabled={updatingWeekId === activeWeekData.id}
-                  onClick={() => toggleWeekCompleted(activeWeekData)}
-                  type="button"
                 >
+                  <input
+                    aria-label={`Contrassegna ${activeWeekData.name} come completata`}
+                    checked={activeWeekData.completed}
+                    disabled={updatingWeekId === activeWeekData.id}
+                    onChange={() => toggleWeekCompleted(activeWeekData)}
+                    type="checkbox"
+                  />
                   {updatingWeekId === activeWeekData.id
                     ? "Salvataggio…"
-                    : activeWeekData.completed
-                      ? "✓ Completata"
-                      : "Segna completata"}
-                </button>
+                    : "Completata"}
+                </label>
                 <button onClick={() => openWeekEdit(activeWeekData)} type="button">Rinomina</button>
                 <button className="delete-week" onClick={() => setWeekToDelete(activeWeekData)} type="button">Elimina</button>
               </div>
