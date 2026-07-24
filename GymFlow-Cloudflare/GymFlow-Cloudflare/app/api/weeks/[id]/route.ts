@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { ensureSchema, getAuthenticatedEmail, getDb } from "../../../../db";
-import { exercises, weeks } from "../../../../db/schema";
+import { ensureSchema, getAuthenticatedEmail, getDatabase, getDb } from "../../../../db";
+import { weeks } from "../../../../db/schema";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -53,20 +53,19 @@ export async function DELETE(request: Request, { params }: Params) {
     await ensureSchema();
     const ownerEmail = getAuthenticatedEmail(request);
     const id = parseId((await params).id);
-    const db = getDb();
-    const [deletedExercises, deletedWeeks] = await Promise.all([
-      db
-        .delete(exercises)
-        .where(and(eq(exercises.week, id), eq(exercises.ownerEmail, ownerEmail)))
-        .returning({ id: exercises.id }),
-      db
-        .delete(weeks)
-        .where(and(eq(weeks.id, id), eq(weeks.ownerEmail, ownerEmail)))
-        .returning(),
+    const database = getDatabase();
+    const [, deletedWeek] = await database.batch([
+      database
+        .prepare("DELETE FROM exercises WHERE week = ? AND owner_email = ?")
+        .bind(id, ownerEmail),
+      database
+        .prepare("DELETE FROM weeks WHERE id = ? AND owner_email = ?")
+        .bind(id, ownerEmail),
     ]);
-    const [week] = deletedWeeks;
-    if (!week) return Response.json({ error: "Settimana non trovata." }, { status: 404 });
-    return Response.json({ deleted: true, id, deletedExercises: deletedExercises.length });
+    if ((deletedWeek.meta.changes ?? 0) < 1) {
+      return Response.json({ error: "Settimana non trovata." }, { status: 404 });
+    }
+    return Response.json({ deleted: true, id });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Errore imprevisto" }, { status: 400 });
   }

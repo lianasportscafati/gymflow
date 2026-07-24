@@ -412,9 +412,10 @@ input:focus, textarea:focus, select:focus { border-color: #879b59; box-shadow: 0
   .metrics { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); }
   .metrics > div { border-right: 0; min-width: 0; padding: 0; }
   .exercise-title-row h3 { font-size: 15px; }
-  .section-heading { align-items: flex-end; }
+  .section-heading { align-items: flex-end; flex-wrap: wrap; gap: 12px; }
   .week-heading-actions .exercise-count { display: none; }
-  .week-heading-actions { gap: 4px; }
+  .week-heading-actions { gap: 4px; width: 100%; }
+  .week-heading-actions .week-complete-button { flex: 1; }
   .week-heading-actions button { padding: 6px 7px; }
   .form-grid { grid-template-columns: 1fr; }
   .form-grid label.full { grid-column: auto; }

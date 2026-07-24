@@ -8,14 +8,18 @@ function getEnv() {
 }
 
 export function getDb() {
+  const database = getDatabase();
+  return drizzle(database, { schema });
+}
+
+export function getDatabase() {
   const database = getEnv()?.DB;
   if (!database) {
     throw new Error(
       "Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in .openai/hosting.json to `DB` or let your control plane inject the real binding values before using the database."
     );
   }
-
-  return drizzle(database, { schema });
+  return database;
 }
 
 export function getAuthenticatedEmail(request: Request) {
@@ -81,10 +85,24 @@ export function ensureSchema() {
 
     const tableInfo = await database.prepare("PRAGMA table_info(weeks)").all<{ name: string }>();
     if (!tableInfo.results.some((column) => column.name === "completed")) {
-      await database
-        .prepare("ALTER TABLE weeks ADD COLUMN completed INTEGER NOT NULL DEFAULT 0")
-        .run();
+      try {
+        await database
+          .prepare("ALTER TABLE weeks ADD COLUMN completed INTEGER NOT NULL DEFAULT 0")
+          .run();
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        if (!message.includes("duplicate column")) throw error;
+      }
     }
+
+    // Mark existing accounts as initialized before the new seeding strategy is
+    // used. This prevents deleted default weeks from being recreated.
+    await database.prepare(`
+      INSERT OR IGNORE INTO app_meta (key, value)
+      SELECT 'weeks_initialized:' || owner_email, '1'
+      FROM weeks
+      GROUP BY owner_email
+    `).run();
   })();
   return schemaReady;
 }
@@ -93,18 +111,41 @@ export async function ensureUserWeeks(ownerEmail: string) {
   await ensureSchema();
   const database = getEnv()?.DB;
   if (!database) throw new Error("Archivio dati non disponibile.");
+  const initializedKey = `weeks_initialized:${ownerEmail}`;
+
+  // D1 batches are transactional. The four defaults are created only before
+  // the initialization marker exists; later deletions therefore stay deleted.
   await database.batch([
     database
-      .prepare("INSERT OR IGNORE INTO weeks (owner_email, name, accent, position) VALUES (?, 'Settimana 1', '#c8ff5a', 1)")
-      .bind(ownerEmail),
+      .prepare(`
+        INSERT INTO weeks (owner_email, name, accent, position)
+        SELECT ?, 'Settimana 1', '#c8ff5a', 1
+        WHERE NOT EXISTS (SELECT 1 FROM app_meta WHERE key = ?)
+      `)
+      .bind(ownerEmail, initializedKey),
     database
-      .prepare("INSERT OR IGNORE INTO weeks (owner_email, name, accent, position) VALUES (?, 'Settimana 2', '#8ee7ff', 2)")
-      .bind(ownerEmail),
+      .prepare(`
+        INSERT INTO weeks (owner_email, name, accent, position)
+        SELECT ?, 'Settimana 2', '#8ee7ff', 2
+        WHERE NOT EXISTS (SELECT 1 FROM app_meta WHERE key = ?)
+      `)
+      .bind(ownerEmail, initializedKey),
     database
-      .prepare("INSERT OR IGNORE INTO weeks (owner_email, name, accent, position) VALUES (?, 'Settimana 3', '#c9b6ff', 3)")
-      .bind(ownerEmail),
+      .prepare(`
+        INSERT INTO weeks (owner_email, name, accent, position)
+        SELECT ?, 'Settimana 3', '#c9b6ff', 3
+        WHERE NOT EXISTS (SELECT 1 FROM app_meta WHERE key = ?)
+      `)
+      .bind(ownerEmail, initializedKey),
     database
-      .prepare("INSERT OR IGNORE INTO weeks (owner_email, name, accent, position) VALUES (?, 'Settimana 4', '#ff9e80', 4)")
-      .bind(ownerEmail),
+      .prepare(`
+        INSERT INTO weeks (owner_email, name, accent, position)
+        SELECT ?, 'Settimana 4', '#ff9e80', 4
+        WHERE NOT EXISTS (SELECT 1 FROM app_meta WHERE key = ?)
+      `)
+      .bind(ownerEmail, initializedKey),
+    database
+      .prepare("INSERT OR IGNORE INTO app_meta (key, value) VALUES (?, '1')")
+      .bind(initializedKey),
   ]);
 }
