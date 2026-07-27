@@ -69,6 +69,8 @@ export function ensureSchema() {
           sets INTEGER NOT NULL DEFAULT 3,
           reps TEXT NOT NULL DEFAULT '10',
           weight TEXT NOT NULL DEFAULT '',
+          base_weight TEXT NOT NULL DEFAULT '',
+          weight_percentage INTEGER,
           notes TEXT NOT NULL DEFAULT '',
           position INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -93,6 +95,20 @@ export function ensureSchema() {
         const message = error instanceof Error ? error.message.toLowerCase() : "";
         if (!message.includes("duplicate column")) throw error;
       }
+    }
+
+    const exerciseTableInfo = await database
+      .prepare("PRAGMA table_info(exercises)")
+      .all<{ name: string }>();
+    if (!exerciseTableInfo.results.some((column) => column.name === "base_weight")) {
+      await database
+        .prepare("ALTER TABLE exercises ADD COLUMN base_weight TEXT NOT NULL DEFAULT ''")
+        .run();
+    }
+    if (!exerciseTableInfo.results.some((column) => column.name === "weight_percentage")) {
+      await database
+        .prepare("ALTER TABLE exercises ADD COLUMN weight_percentage INTEGER")
+        .run();
     }
 
     // Mark existing accounts as initialized before the new seeding strategy is

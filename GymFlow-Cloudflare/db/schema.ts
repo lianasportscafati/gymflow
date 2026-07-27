@@ -31,6 +31,8 @@ export const exercises = sqliteTable("exercises", {
   sets: integer("sets").notNull().default(3),
   reps: text("reps").notNull().default("10"),
   weight: text("weight").notNull().default(""),
+  baseWeight: text("base_weight").notNull().default(""),
+  weightPercentage: integer("weight_percentage"),
   notes: text("notes").notNull().default(""),
   position: integer("position").notNull().default(0),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
