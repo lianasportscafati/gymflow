@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { calculateWeight } from "../lib/weight";
 
 type Exercise = {
   id: number;
@@ -10,6 +11,8 @@ type Exercise = {
   sets: number;
   reps: string;
   weight: string;
+  baseWeight: string;
+  weightPercentage: number | null;
   notes: string;
   position: number;
 };
@@ -31,6 +34,8 @@ const emptyDraft = (week: number): ExerciseDraft => ({
   sets: 3,
   reps: "10",
   weight: "",
+  baseWeight: "",
+  weightPercentage: null,
   notes: "",
 });
 
@@ -49,6 +54,9 @@ export default function Home() {
   const [weekToDelete, setWeekToDelete] = useState<Week | null>(null);
   const [weekName, setWeekName] = useState("");
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft(1));
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
+  const [copyTargetWeek, setCopyTargetWeek] = useState<number | null>(null);
+  const [selectedExerciseIds, setSelectedExerciseIds] = useState<number[]>([]);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
 
@@ -108,6 +116,8 @@ export default function Home() {
       sets: exercise.sets,
       reps: exercise.reps,
       weight: exercise.weight,
+      baseWeight: exercise.baseWeight,
+      weightPercentage: exercise.weightPercentage,
       notes: exercise.notes,
     });
     setError("");
@@ -267,6 +277,47 @@ export default function Home() {
     }
   };
 
+  const openCopyModal = () => {
+    if (activeWeek === null || currentExercises.length === 0) return;
+    const fallback = weeks.find((week) => week.id !== activeWeek)?.id ?? null;
+    if (fallback === null) {
+      setError("Crea un’altra settimana prima di copiare gli esercizi.");
+      return;
+    }
+    setSelectedExerciseIds(currentExercises.map((exercise) => exercise.id));
+    setCopyTargetWeek(fallback);
+    setError("");
+    setCopyModalOpen(true);
+  };
+
+  const copyExercises = async () => {
+    if (!selectedExerciseIds.length || copyTargetWeek === null) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch("/api/exercises/copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          exerciseIds: selectedExerciseIds,
+          targetWeek: copyTargetWeek,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Copia non riuscita");
+      setExercises((current) => [...current, ...data.exercises]);
+      setActiveWeek(copyTargetWeek);
+      setCopyModalOpen(false);
+      setToast(
+        `${data.exercises.length} ${data.exercises.length === 1 ? "esercizio copiato" : "esercizi copiati"}`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore imprevisto");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -382,6 +433,11 @@ export default function Home() {
                 <span className="exercise-count">
                   {currentExercises.length} {currentExercises.length === 1 ? "esercizio" : "esercizi"}
                 </span>
+                {currentExercises.length > 0 && weeks.length > 1 && (
+                  <button className="copy-week-button" onClick={openCopyModal} type="button">
+                    Copia esercizi
+                  </button>
+                )}
                 <label
                   className={`week-complete-button ${activeWeekData.completed ? "completed" : ""}`}
                 >
@@ -457,7 +513,13 @@ export default function Home() {
                     <div className="metrics">
                       <div><span>SERIE</span><strong>{exercise.sets}</strong></div>
                       <div><span>RIPETIZIONI</span><strong>{exercise.reps}</strong></div>
-                      <div><span>CARICO</span><strong>{exercise.weight || "—"}</strong></div>
+                      <div>
+                        <span>CARICO</span>
+                        <strong>{exercise.weight || "—"}</strong>
+                        {exercise.baseWeight && exercise.weightPercentage && (
+                          <small>{exercise.weightPercentage}% di {exercise.baseWeight} kg</small>
+                        )}
+                      </div>
                     </div>
                     {exercise.notes && (
                       <div className="notes">
@@ -545,14 +607,43 @@ export default function Home() {
                     value={draft.reps}
                   />
                 </label>
-                <label className="full">
-                  Carico
+                <label>
+                  Peso base (kg)
                   <input
-                    onChange={(e) => setDraft({ ...draft, weight: e.target.value })}
-                    placeholder="Es. 60 kg"
-                    value={draft.weight}
+                    inputMode="decimal"
+                    onChange={(e) => {
+                      const baseWeight = e.target.value;
+                      setDraft({
+                        ...draft,
+                        baseWeight,
+                        weight: calculateWeight(baseWeight, draft.weightPercentage),
+                      });
+                    }}
+                    placeholder="Es. 67,5"
+                    value={draft.baseWeight}
                   />
                 </label>
+                <label>
+                  Percentuale (%)
+                  <input
+                    min="1"
+                    onChange={(e) => {
+                      const weightPercentage = e.target.value ? Number(e.target.value) : null;
+                      setDraft({
+                        ...draft,
+                        weightPercentage,
+                        weight: calculateWeight(draft.baseWeight, weightPercentage),
+                      });
+                    }}
+                    placeholder="Es. 50"
+                    type="number"
+                    value={draft.weightPercentage ?? ""}
+                  />
+                </label>
+                <div className="calculated-weight full">
+                  <span>CARICO CALCOLATO</span>
+                  <strong>{draft.weight || "Inserisci peso base e percentuale"}</strong>
+                </div>
                 <label className="full">
                   Note
                   <textarea
@@ -636,6 +727,68 @@ export default function Home() {
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {copyModalOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-labelledby="copy-modal-title"
+            aria-modal="true"
+            className="modal copy-modal"
+            role="dialog"
+          >
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">COPIA PROGRAMMA</p>
+                <h2 id="copy-modal-title">Copia esercizi in un’altra settimana</h2>
+              </div>
+              <button aria-label="Chiudi" className="close-button" onClick={() => setCopyModalOpen(false)}>×</button>
+            </div>
+            <label className="copy-target">
+              Settimana di destinazione
+              <select
+                onChange={(event) => setCopyTargetWeek(Number(event.target.value))}
+                value={copyTargetWeek ?? ""}
+              >
+                {weeks.filter((week) => week.id !== activeWeek).map((week) => (
+                  <option key={week.id} value={week.id}>{week.name}</option>
+                ))}
+              </select>
+            </label>
+            <div className="copy-exercise-list">
+              {currentExercises.map((exercise) => (
+                <label key={exercise.id}>
+                  <input
+                    checked={selectedExerciseIds.includes(exercise.id)}
+                    onChange={(event) =>
+                      setSelectedExerciseIds((current) =>
+                        event.target.checked
+                          ? [...current, exercise.id]
+                          : current.filter((id) => id !== exercise.id),
+                      )
+                    }
+                    type="checkbox"
+                  />
+                  <span>{exercise.name}</span>
+                </label>
+              ))}
+            </div>
+            {error && <p className="form-error" role="alert">{error}</p>}
+            <div className="modal-actions">
+              <button className="secondary-button" onClick={() => setCopyModalOpen(false)} type="button">
+                Annulla
+              </button>
+              <button
+                className="primary-button"
+                disabled={saving || !selectedExerciseIds.length || copyTargetWeek === null}
+                onClick={copyExercises}
+                type="button"
+              >
+                {saving ? "Copia…" : `Copia ${selectedExerciseIds.length} esercizi`}
+              </button>
+            </div>
           </section>
         </div>
       )}
