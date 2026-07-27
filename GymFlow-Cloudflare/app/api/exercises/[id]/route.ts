@@ -11,6 +11,8 @@ type ExerciseInput = {
   sets?: number;
   reps?: string;
   weight?: string;
+  baseWeight?: string;
+  weightPercentage?: number | null;
   notes?: string;
 };
 
@@ -34,6 +36,11 @@ function cleanInput(payload: ExerciseInput) {
     sets,
     reps: payload.reps?.trim() || "—",
     weight: payload.weight?.trim() ?? "",
+    baseWeight: payload.baseWeight?.trim() ?? "",
+    weightPercentage:
+      payload.weightPercentage === null || payload.weightPercentage === undefined
+        ? null
+        : Math.max(1, Math.min(1000, Math.round(Number(payload.weightPercentage)))),
     notes: payload.notes?.trim() ?? "",
     updatedAt: new Date().toISOString(),
   };
