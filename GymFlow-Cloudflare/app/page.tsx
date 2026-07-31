@@ -276,9 +276,18 @@ export default function Home() {
           {archivedPlans.map((plan) => <button className={`nav-item archived ${activePlanId === plan.id ? "active" : ""}`} key={plan.id} onClick={() => selectPlan(plan)}><span className="plan-nav-icon" aria-hidden="true" /> <span className="week-name">{plan.name}</span></button>)}
           {!archivedPlans.length && <p className="sidebar-empty static">Nessuna scheda archiviata</p>}
         </nav>
+        <section className="account-panel" aria-label="Account">
+          <span className="account-icon" aria-hidden="true">↪</span>
+          <div><strong>Account</strong><small>Esci per usare un’altra email</small></div>
+          <a href="/cdn-cgi/access/logout" className="logout-button">Esci</a>
+        </section>
       </aside>
 
       <section className="content">
+        <div className="mobile-account">
+          <div><strong>Account GymFlow</strong><small>Vuoi accedere con un’altra email?</small></div>
+          <a href="/cdn-cgi/access/logout" className="mobile-logout-button"><span aria-hidden="true">↪</span> Esci / cambia email</a>
+        </div>
         <div className="mobile-view-switch" role="tablist">
           <button className={view === "program" ? "active" : ""} onClick={() => { setView("program"); setActivePlanId(activePlans.length === 1 ? activePlans[0].id : null); }}>Schede <span>{activePlans.length}</span></button>
           <button className={view === "archive" ? "active" : ""} onClick={() => { setView("archive"); if (!activePlan?.archived) selectPlan(archivedPlans[0]); }}>Archivio <span>{archivedPlans.length}</span></button>
