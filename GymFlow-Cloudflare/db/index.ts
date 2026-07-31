@@ -99,6 +99,7 @@ export function ensureSchema() {
           weight TEXT NOT NULL DEFAULT '',
           base_weight TEXT NOT NULL DEFAULT '',
           weight_percentage INTEGER,
+          recovery_seconds INTEGER NOT NULL DEFAULT 0,
           notes TEXT NOT NULL DEFAULT '',
           position INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -203,6 +204,11 @@ export function ensureSchema() {
     if (!exerciseTableInfo.results.some((column) => column.name === "weight_percentage")) {
       await database
         .prepare("ALTER TABLE exercises ADD COLUMN weight_percentage INTEGER")
+        .run();
+    }
+    if (!exerciseTableInfo.results.some((column) => column.name === "recovery_seconds")) {
+      await database
+        .prepare("ALTER TABLE exercises ADD COLUMN recovery_seconds INTEGER NOT NULL DEFAULT 0")
         .run();
     }
     await database.prepare(`
