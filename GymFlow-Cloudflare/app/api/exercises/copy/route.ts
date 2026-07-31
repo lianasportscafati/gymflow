@@ -1,10 +1,11 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { ensureSchema, getAuthenticatedEmail, getDb } from "../../../../db";
-import { exercises, weeks } from "../../../../db/schema";
+import { exercises, weeks, workouts } from "../../../../db/schema";
 
 type CopyInput = {
   exerciseIds?: number[];
   targetWeek?: number;
+  targetWorkoutId?: number;
 };
 
 export async function POST(request: Request) {
@@ -16,11 +17,15 @@ export async function POST(request: Request) {
       .map(Number)
       .filter((id) => Number.isInteger(id) && id > 0);
     const targetWeek = Number(payload.targetWeek);
+    const targetWorkoutId = Number(payload.targetWorkoutId);
     if (!exerciseIds.length) {
       return Response.json({ error: "Seleziona almeno un esercizio." }, { status: 400 });
     }
     if (!Number.isInteger(targetWeek) || targetWeek < 1) {
       return Response.json({ error: "Seleziona una settimana di destinazione." }, { status: 400 });
+    }
+    if (!Number.isInteger(targetWorkoutId) || targetWorkoutId < 1) {
+      return Response.json({ error: "Seleziona un allenamento di destinazione." }, { status: 400 });
     }
 
     const db = getDb();
@@ -32,6 +37,18 @@ export async function POST(request: Request) {
     if (!week) {
       return Response.json({ error: "La settimana di destinazione non esiste." }, { status: 404 });
     }
+    const [targetWorkout] = await db
+      .select({ id: workouts.id })
+      .from(workouts)
+      .where(and(
+        eq(workouts.id, targetWorkoutId),
+        eq(workouts.weekId, targetWeek),
+        eq(workouts.ownerEmail, ownerEmail),
+      ))
+      .limit(1);
+    if (!targetWorkout) {
+      return Response.json({ error: "L’allenamento di destinazione non appartiene alla settimana selezionata." }, { status: 404 });
+    }
 
     const source = await db
       .select()
@@ -41,11 +58,14 @@ export async function POST(request: Request) {
     if (!source.length) {
       return Response.json({ error: "Gli esercizi selezionati non esistono più." }, { status: 404 });
     }
+    if (source.some((item) => item.week === targetWeek)) {
+      return Response.json({ error: "Scegli una settimana diversa da quella di origine." }, { status: 400 });
+    }
 
     const current = await db
       .select({ position: exercises.position })
       .from(exercises)
-      .where(and(eq(exercises.ownerEmail, ownerEmail), eq(exercises.week, targetWeek)))
+      .where(and(eq(exercises.ownerEmail, ownerEmail), eq(exercises.workoutId, targetWorkoutId)))
       .orderBy(asc(exercises.position));
     const startPosition = current.reduce((max, item) => Math.max(max, item.position), 0);
     const copied = await db
@@ -54,6 +74,7 @@ export async function POST(request: Request) {
         source.map((item, index) => ({
           ownerEmail,
           week: targetWeek,
+          workoutId: targetWorkoutId,
           name: item.name,
           muscleGroup: item.muscleGroup,
           sets: item.sets,
