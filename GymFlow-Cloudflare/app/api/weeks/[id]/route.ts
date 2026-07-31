@@ -77,9 +77,12 @@ export async function DELETE(request: Request, { params }: Params) {
       return Response.json({ error: "Settimana non trovata." }, { status: 404 });
     }
     const database = getDatabase();
-    const [, deletedWeek] = await database.batch([
+    const [, , deletedWeek] = await database.batch([
       database
         .prepare("DELETE FROM exercises WHERE week = ? AND owner_email = ?")
+        .bind(id, ownerEmail),
+      database
+        .prepare("DELETE FROM workouts WHERE week_id = ? AND owner_email = ?")
         .bind(id, ownerEmail),
       database
         .prepare("DELETE FROM weeks WHERE id = ? AND owner_email = ?")
