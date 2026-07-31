@@ -33,7 +33,7 @@ test("renders development preview metadata", async () => {
   assert.match(await response.text(), developmentPreviewMeta);
 });
 
-test("includes the visible Completata checkbox in the production client", async () => {
+test("includes completion and archive controls in the production client", async () => {
   const assetsDirectory = new URL("../dist/client/assets/", import.meta.url);
   const files = await readdir(assetsDirectory);
   const javascript = await Promise.all(
@@ -44,4 +44,8 @@ test("includes the visible Completata checkbox in the production client", async 
   const bundle = javascript.join("\n");
   assert.match(bundle, /type:[`"']checkbox[`"']/);
   assert.match(bundle, /Completata/);
+  assert.match(bundle, /Archivio/);
+  assert.match(bundle, /Archivia settimana/);
+  assert.match(bundle, /Ripristina nel programma/);
+  assert.match(bundle, /SOLA LETTURA/);
 });

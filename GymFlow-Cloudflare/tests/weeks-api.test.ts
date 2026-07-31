@@ -17,6 +17,7 @@ import {
   DELETE as deleteExercise,
   PUT as updateExercise,
 } from "../app/api/exercises/[id]/route";
+import { POST as copyExercises } from "../app/api/exercises/copy/route";
 
 const userA = "utente-a@example.com";
 const userB = "utente-b@example.com";
@@ -26,6 +27,8 @@ type WeekRecord = {
   id: number;
   name: string;
   completed: boolean;
+  archived: boolean;
+  archivedAt: string | null;
 };
 
 type ExerciseRecord = {
@@ -65,11 +68,16 @@ before(async () => {
     .__GYMFLOW_ENV__ = { DB };
 });
 
-after(async () => {
-  await miniflare.dispose();
+after(() => {
+  delete (globalThis as typeof globalThis & { __GYMFLOW_ENV__?: unknown })
+    .__GYMFLOW_ENV__;
+  // In alcuni runtime Workerd la Promise di dispose resta pendente anche dopo
+  // aver rilasciato tutte le risorse. Avviamo comunque la pulizia senza
+  // trattenere il test runner su una Promise ormai priva di handle attivi.
+  void miniflare.dispose();
 });
 
-test("completamento, CRUD e isolamento persistono dall'inizio alla fine", async () => {
+test("completamento, archivio, ripristino, CRUD e isolamento persistono dall'inizio alla fine", async () => {
   const unauthorized = await getWeeks(request("/api/weeks"));
   assert.notEqual(unauthorized.status, 200);
 
@@ -79,6 +87,29 @@ test("completamento, CRUD e isolamento persistono dall'inizio alla fine", async 
   assert.equal(initial.weeks.length, 4);
   const firstWeek = initial.weeks[0];
   assert.equal(firstWeek.completed, false);
+  assert.equal(firstWeek.archived, false);
+
+  const archiveBeforeCompletion = await updateWeek(
+    request(`/api/weeks/${firstWeek.id}`, userA, "PUT", { archived: true }),
+    { params: Promise.resolve({ id: String(firstWeek.id) }) },
+  );
+  assert.equal(archiveBeforeCompletion.status, 409);
+
+  const createdExerciseResponse = await createExercise(
+    request("/api/exercises", userA, "POST", {
+      week: firstWeek.id,
+      name: "Squat",
+      muscleGroup: "Gambe",
+      sets: 4,
+      reps: "8",
+      weight: "60 kg",
+      notes: "Tecnica controllata",
+    }),
+  );
+  assert.equal(createdExerciseResponse.status, 201);
+  const createdExercise = (
+    await json<{ exercise: ExerciseRecord }>(createdExerciseResponse)
+  ).exercise;
 
   const completedResponse = await updateWeek(
     request(`/api/weeks/${firstWeek.id}`, userA, "PUT", { completed: true }),
@@ -98,21 +129,87 @@ test("completamento, CRUD e isolamento persistono dall'inizio alla fine", async 
     true,
   );
 
-  const createdExerciseResponse = await createExercise(
+  const archivedResponse = await updateWeek(
+    request(`/api/weeks/${firstWeek.id}`, userA, "PUT", { archived: true }),
+    { params: Promise.resolve({ id: String(firstWeek.id) }) },
+  );
+  assert.equal(archivedResponse.status, 200);
+  const archivedWeek = (await json<{ week: WeekRecord }>(archivedResponse)).week;
+  assert.equal(archivedWeek.archived, true);
+  assert.ok(archivedWeek.archivedAt);
+
+  const afterArchive = await json<{ weeks: WeekRecord[] }>(
+    await getWeeks(request("/api/weeks", userA)),
+  );
+  assert.equal(
+    afterArchive.weeks.find((week) => week.id === firstWeek.id)?.archived,
+    true,
+    "la settimana deve restare nell’archivio dopo il ricaricamento",
+  );
+  assert.equal(
+    (
+      await json<{ exercises: ExerciseRecord[] }>(
+        await getExercises(request("/api/exercises", userA)),
+      )
+    ).exercises.some((exercise) => exercise.id === createdExercise.id),
+    true,
+    "gli esercizi devono essere conservati nell’archivio",
+  );
+
+  const editArchivedExercise = await updateExercise(
+    request(`/api/exercises/${createdExercise.id}`, userA, "PUT", {
+      week: firstWeek.id,
+      name: "Modifica non consentita",
+      sets: 3,
+    }),
+    { params: Promise.resolve({ id: String(createdExercise.id) }) },
+  );
+  assert.equal(editArchivedExercise.status, 409);
+
+  const addToArchivedWeek = await createExercise(
     request("/api/exercises", userA, "POST", {
       week: firstWeek.id,
-      name: "Squat",
-      muscleGroup: "Gambe",
-      sets: 4,
-      reps: "8",
-      weight: "60 kg",
-      notes: "Tecnica controllata",
+      name: "Nuovo esercizio",
+      sets: 3,
     }),
   );
-  assert.equal(createdExerciseResponse.status, 201);
-  const createdExercise = (
-    await json<{ exercise: ExerciseRecord }>(createdExerciseResponse)
-  ).exercise;
+  assert.equal(addToArchivedWeek.status, 409);
+
+  const deleteArchivedExercise = await deleteExercise(
+    request(`/api/exercises/${createdExercise.id}`, userA, "DELETE"),
+    { params: Promise.resolve({ id: String(createdExercise.id) }) },
+  );
+  assert.equal(deleteArchivedExercise.status, 409);
+
+  const copyToArchivedWeek = await copyExercises(
+    request("/api/exercises/copy", userA, "POST", {
+      exerciseIds: [createdExercise.id],
+      targetWeek: firstWeek.id,
+    }),
+  );
+  assert.equal(copyToArchivedWeek.status, 409);
+
+  const deleteArchivedWeek = await deleteWeek(
+    request(`/api/weeks/${firstWeek.id}`, userA, "DELETE"),
+    { params: Promise.resolve({ id: String(firstWeek.id) }) },
+  );
+  assert.equal(deleteArchivedWeek.status, 409);
+
+  const otherUserCannotRestore = await updateWeek(
+    request(`/api/weeks/${firstWeek.id}`, userB, "PUT", { archived: false }),
+    { params: Promise.resolve({ id: String(firstWeek.id) }) },
+  );
+  assert.equal(otherUserCannotRestore.status, 404);
+
+  const restoredResponse = await updateWeek(
+    request(`/api/weeks/${firstWeek.id}`, userA, "PUT", { archived: false }),
+    { params: Promise.resolve({ id: String(firstWeek.id) }) },
+  );
+  assert.equal(restoredResponse.status, 200);
+  const restoredWeek = (await json<{ week: WeekRecord }>(restoredResponse)).week;
+  assert.equal(restoredWeek.archived, false);
+  assert.equal(restoredWeek.archivedAt, null);
+  assert.equal(restoredWeek.completed, true);
 
   const updatedExerciseResponse = await updateExercise(
     request(`/api/exercises/${createdExercise.id}`, userA, "PUT", {
