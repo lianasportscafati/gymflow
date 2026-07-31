@@ -110,5 +110,20 @@ jobs:
               --file drizzle/0008_workout_plans.sql
           fi
 
+          workouts_schema_file="$(mktemp)"
+          npx wrangler d1 execute gymflow-db \
+            --remote \
+            --json \
+            --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'workouts';" \
+            >"${workouts_schema_file}"
+          if jq -e '.. | objects | select(.name? == "workouts")' \
+            >/dev/null "${workouts_schema_file}"; then
+            echo "Week workouts migration already applied."
+          else
+            npx wrangler d1 execute gymflow-db \
+              --remote \
+              --file drizzle/0009_week_workouts.sql
+          fi
+
       - name: Deploy Worker
         run: npx wrangler deploy
