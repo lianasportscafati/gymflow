@@ -30,7 +30,7 @@ function cleanInput(payload: ExerciseInput) {
   const weightPercentage =
     payload.weightPercentage === null || payload.weightPercentage === undefined || !Number.isFinite(rawPercentage)
       ? null
-      : Math.max(1, Math.min(100, Math.round(rawPercentage)));
+      : Math.max(0.1, Math.min(100, Math.round(rawPercentage * 100) / 100));
   return {
     week,
     workoutId,
