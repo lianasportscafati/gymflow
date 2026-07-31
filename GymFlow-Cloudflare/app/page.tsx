@@ -54,9 +54,9 @@ export default function Home() {
       if (!weekResponse.ok) throw new Error(weekData.error);
       if (!exerciseResponse.ok) throw new Error(exerciseData.error);
       setPlans(planData.plans); setWeeks(weekData.weeks); setExercises(exerciseData.exercises);
-      const first = planData.plans.find((plan: Plan) => !plan.archived) ?? planData.plans[0];
+      const first = planData.plans.find((plan: Plan) => !plan.archived);
       setActivePlanId(first?.id ?? null);
-      setView(first?.archived ? "archive" : "program");
+      setView("program");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Errore nel caricamento");
     } finally { setLoading(false); }
