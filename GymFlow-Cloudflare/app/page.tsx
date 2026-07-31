@@ -25,7 +25,22 @@ type Week = {
   accent: string;
   position: number;
   completed: boolean;
+  archived: boolean;
+  archivedAt: string | null;
 };
+
+type ViewMode = "program" | "archive";
+
+function formatArchiveDate(value: string | null) {
+  if (!value) return "Data non disponibile";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Data non disponibile";
+  return new Intl.DateTimeFormat("it-IT", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
 
 const emptyDraft = (week: number): ExerciseDraft => ({
   week,
@@ -40,7 +55,9 @@ const emptyDraft = (week: number): ExerciseDraft => ({
 });
 
 export default function Home() {
+  const [view, setView] = useState<ViewMode>("program");
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
+  const [reviewedArchiveWeekId, setReviewedArchiveWeekId] = useState<number | null>(null);
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +69,7 @@ export default function Home() {
   const [weekModalOpen, setWeekModalOpen] = useState(false);
   const [editingWeek, setEditingWeek] = useState<Week | null>(null);
   const [weekToDelete, setWeekToDelete] = useState<Week | null>(null);
+  const [weekToArchive, setWeekToArchive] = useState<Week | null>(null);
   const [weekName, setWeekName] = useState("");
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft(1));
   const [copyModalOpen, setCopyModalOpen] = useState(false);
@@ -74,7 +92,9 @@ export default function Home() {
         if (!exercisesResponse.ok) throw new Error(exercisesData.error || "Errore nel caricamento");
         setWeeks(weeksData.weeks);
         setExercises(exercisesData.exercises);
-        setActiveWeek(weeksData.weeks[0]?.id ?? null);
+        setActiveWeek(
+          weeksData.weeks.find((week: Week) => !week.archived)?.id ?? null,
+        );
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Errore imprevisto");
@@ -87,6 +107,23 @@ export default function Home() {
     const timer = setTimeout(() => setToast(""), 2600);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  const activeWeeks = useMemo(
+    () => weeks.filter((week) => !week.archived),
+    [weeks],
+  );
+
+  const archivedWeeks = useMemo(
+    () =>
+      weeks
+        .filter((week) => week.archived)
+        .sort((a, b) => {
+          const aTime = a.archivedAt ? new Date(a.archivedAt).getTime() : 0;
+          const bTime = b.archivedAt ? new Date(b.archivedAt).getTime() : 0;
+          return bTime - aTime || b.id - a.id;
+        }),
+    [weeks],
+  );
 
   const currentExercises = useMemo(
     () =>
@@ -183,13 +220,33 @@ export default function Home() {
     }
   };
 
-  const totalExercises = exercises.length;
-  const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets, 0);
-  const activeWeekData = weeks.find((week) => week.id === activeWeek) ?? null;
+  const activeWeekIds = useMemo(
+    () => new Set(activeWeeks.map((week) => week.id)),
+    [activeWeeks],
+  );
+  const activeExercises = useMemo(
+    () => exercises.filter((exercise) => activeWeekIds.has(exercise.week)),
+    [exercises, activeWeekIds],
+  );
+  const totalExercises = activeExercises.length;
+  const totalSets = activeExercises.reduce((sum, exercise) => sum + exercise.sets, 0);
+  const activeWeekData = activeWeeks.find((week) => week.id === activeWeek) ?? null;
+  const reviewedArchiveWeek =
+    archivedWeeks.find((week) => week.id === reviewedArchiveWeekId) ?? null;
+  const reviewedExercises = useMemo(
+    () =>
+      exercises
+        .filter((exercise) => exercise.week === reviewedArchiveWeekId)
+        .sort((a, b) => a.position - b.position || a.id - b.id),
+    [exercises, reviewedArchiveWeekId],
+  );
+  const archivedExerciseCount = exercises.filter((exercise) =>
+    archivedWeeks.some((week) => week.id === exercise.week),
+  ).length;
 
   const openWeekCreate = () => {
     setEditingWeek(null);
-    setWeekName(`Settimana ${weeks.length + 1}`);
+    setWeekName(`Settimana ${activeWeeks.length + 1}`);
     setError("");
     setWeekModalOpen(true);
   };
@@ -224,7 +281,10 @@ export default function Home() {
           ? current.map((week) => (week.id === editingWeek.id ? data.week : week))
           : [...current, data.week],
       );
-      if (!editingWeek) setActiveWeek(data.week.id);
+      if (!editingWeek) {
+        setActiveWeek(data.week.id);
+        setView("program");
+      }
       setWeekModalOpen(false);
       setToast(editingWeek ? "Settimana rinominata" : "Settimana aggiunta");
     } catch (err) {
@@ -245,7 +305,9 @@ export default function Home() {
       const remainingWeeks = weeks.filter((week) => week.id !== target.id);
       setWeeks(remainingWeeks);
       setExercises((current) => current.filter((exercise) => exercise.week !== target.id));
-      if (activeWeek === target.id) setActiveWeek(remainingWeeks[0]?.id ?? null);
+      if (activeWeek === target.id) {
+        setActiveWeek(remainingWeeks.find((week) => !week.archived)?.id ?? null);
+      }
       setWeekToDelete(null);
       setToast("Settimana eliminata");
     } catch (err) {
@@ -277,9 +339,79 @@ export default function Home() {
     }
   };
 
+  const archiveWeek = async () => {
+    if (!weekToArchive) return;
+    const target = weekToArchive;
+    setUpdatingWeekId(target.id);
+    setError("");
+    try {
+      const response = await fetch(`/api/weeks/${target.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived: true }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Archiviazione non riuscita");
+      setWeeks((current) =>
+        current.map((week) => (week.id === target.id ? data.week : week)),
+      );
+      setActiveWeek(activeWeeks.find((week) => week.id !== target.id)?.id ?? null);
+      setReviewedArchiveWeekId(target.id);
+      setWeekToArchive(null);
+      setView("archive");
+      setToast("Settimana archiviata");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore imprevisto");
+    } finally {
+      setUpdatingWeekId(null);
+    }
+  };
+
+  const restoreWeek = async (week: Week) => {
+    setUpdatingWeekId(week.id);
+    setError("");
+    try {
+      const response = await fetch(`/api/weeks/${week.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived: false }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Ripristino non riuscito");
+      setWeeks((current) =>
+        current.map((item) => (item.id === week.id ? data.week : item)),
+      );
+      setActiveWeek(week.id);
+      setReviewedArchiveWeekId(null);
+      setView("program");
+      setToast("Settimana ripristinata");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore imprevisto");
+    } finally {
+      setUpdatingWeekId(null);
+    }
+  };
+
+  const openProgram = (weekId?: number) => {
+    setView("program");
+    setActiveWeek(
+      weekId ??
+        (activeWeeks.some((week) => week.id === activeWeek)
+          ? activeWeek
+          : activeWeeks[0]?.id ?? null),
+    );
+  };
+
+  const openArchive = () => {
+    setView("archive");
+    if (!archivedWeeks.some((week) => week.id === reviewedArchiveWeekId)) {
+      setReviewedArchiveWeekId(archivedWeeks[0]?.id ?? null);
+    }
+  };
+
   const openCopyModal = () => {
     if (activeWeek === null || currentExercises.length === 0) return;
-    const fallback = weeks.find((week) => week.id !== activeWeek)?.id ?? null;
+    const fallback = activeWeeks.find((week) => week.id !== activeWeek)?.id ?? null;
     if (fallback === null) {
       setError("Crea un’altra settimana prima di copiare gli esercizi.");
       return;
@@ -307,6 +439,7 @@ export default function Home() {
       if (!response.ok) throw new Error(data.error || "Copia non riuscita");
       setExercises((current) => [...current, ...data.exercises]);
       setActiveWeek(copyTargetWeek);
+      setView("program");
       setCopyModalOpen(false);
       setToast(
         `${data.exercises.length} ${data.exercises.length === 1 ? "esercizio copiato" : "esercizi copiati"}`,
@@ -326,41 +459,75 @@ export default function Home() {
           <span>GYMFLOW</span>
         </a>
         <nav className="side-nav" aria-label="Navigazione principale">
-          <button className="nav-item active" type="button">
+          <button
+            className={`nav-item ${view === "program" ? "active" : ""}`}
+            onClick={() => openProgram()}
+            type="button"
+          >
             <span className="nav-icon">▦</span> Programma
           </button>
-          <div className="nav-caption week-caption">
-            <span>LE MIE SETTIMANE</span>
-            <button aria-label="Aggiungi settimana" onClick={openWeekCreate} type="button">＋</button>
-          </div>
-          {weeks.map((week) => (
-            <div className={`week-nav-row ${activeWeek === week.id ? "selected" : ""} ${week.completed ? "completed" : ""}`} key={week.id}>
-              <button
-                className={`nav-item week-link ${activeWeek === week.id ? "selected" : ""}`}
-                onClick={() => setActiveWeek(week.id)}
-                type="button"
-              >
-                <span className="week-dot" style={{ backgroundColor: week.accent }} />
-                <span className="week-name">{week.name}</span>
-                {week.completed && <span className="week-check" aria-label="Completata">✓</span>}
-                <span className="side-count">
-                  {exercises.filter((item) => item.week === week.id).length}
-                </span>
-              </button>
-              <button
-                aria-label={`Gestisci ${week.name}`}
-                className="week-manage"
-                onClick={() => openWeekEdit(week)}
-                type="button"
-              >
-                •••
-              </button>
-            </div>
-          ))}
-          {weeks.length === 0 && (
-            <button className="sidebar-empty" onClick={openWeekCreate} type="button">
-              ＋ Crea la prima settimana
-            </button>
+          <button
+            className={`nav-item ${view === "archive" ? "active" : ""}`}
+            onClick={openArchive}
+            type="button"
+          >
+            <span className="nav-icon">▤</span> Archivio
+            <span className="side-count">{archivedWeeks.length}</span>
+          </button>
+          {view === "program" ? (
+            <>
+              <div className="nav-caption week-caption">
+                <span>LE MIE SETTIMANE</span>
+                <button aria-label="Aggiungi settimana" onClick={openWeekCreate} type="button">＋</button>
+              </div>
+              {activeWeeks.map((week) => (
+                <div className={`week-nav-row ${activeWeek === week.id ? "selected" : ""} ${week.completed ? "completed" : ""}`} key={week.id}>
+                  <button
+                    className={`nav-item week-link ${activeWeek === week.id ? "selected" : ""}`}
+                    onClick={() => openProgram(week.id)}
+                    type="button"
+                  >
+                    <span className="week-dot" style={{ backgroundColor: week.accent }} />
+                    <span className="week-name">{week.name}</span>
+                    {week.completed && <span className="week-check" aria-label="Completata">✓</span>}
+                    <span className="side-count">
+                      {exercises.filter((item) => item.week === week.id).length}
+                    </span>
+                  </button>
+                  <button
+                    aria-label={`Gestisci ${week.name}`}
+                    className="week-manage"
+                    onClick={() => openWeekEdit(week)}
+                    type="button"
+                  >
+                    •••
+                  </button>
+                </div>
+              ))}
+              {activeWeeks.length === 0 && (
+                <button className="sidebar-empty" onClick={openWeekCreate} type="button">
+                  ＋ Crea una settimana
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="nav-caption">SETTIMANE ARCHIVIATE</div>
+              {archivedWeeks.map((week) => (
+                <button
+                  className={`nav-item archive-link ${reviewedArchiveWeekId === week.id ? "selected" : ""}`}
+                  key={week.id}
+                  onClick={() => setReviewedArchiveWeekId(week.id)}
+                  type="button"
+                >
+                  <span className="week-dot" style={{ backgroundColor: week.accent }} />
+                  <span className="week-name">{week.name}</span>
+                </button>
+              ))}
+              {archivedWeeks.length === 0 && (
+                <p className="sidebar-empty static">Nessuna settimana archiviata</p>
+              )}
+            </>
           )}
         </nav>
         <div className="sidebar-tip">
@@ -373,16 +540,42 @@ export default function Home() {
       </aside>
 
       <section className="content">
+        <div className="mobile-view-switch" aria-label="Sezione" role="tablist">
+          <button
+            aria-selected={view === "program"}
+            className={view === "program" ? "active" : ""}
+            onClick={() => openProgram()}
+            role="tab"
+            type="button"
+          >
+            Programma
+          </button>
+          <button
+            aria-selected={view === "archive"}
+            className={view === "archive" ? "active" : ""}
+            onClick={openArchive}
+            role="tab"
+            type="button"
+          >
+            Archivio <span>{archivedWeeks.length}</span>
+          </button>
+        </div>
         <header className="topbar">
           <div>
-            <p className="eyebrow">IL MIO ALLENAMENTO</p>
-            <h1>Programma palestra</h1>
+            <p className="eyebrow">
+              {view === "program" ? "IL MIO ALLENAMENTO" : "STORICO ALLENAMENTI"}
+            </p>
+            <h1>{view === "program" ? "Programma palestra" : "Archivio"}</h1>
           </div>
-          <button className="primary-button desktop-add" onClick={openCreate}>
-            <span>＋</span> Nuovo esercizio
-          </button>
+          {view === "program" && (
+            <button className="primary-button desktop-add" onClick={openCreate}>
+              <span>＋</span> Nuovo esercizio
+            </button>
+          )}
         </header>
 
+        {view === "program" ? (
+          <>
         <section className="summary-grid" aria-label="Riepilogo programma">
           <article className="summary-card">
             <span className="summary-label">ESERCIZI TOTALI</span>
@@ -402,7 +595,7 @@ export default function Home() {
         </section>
 
         <div className="mobile-weeks" role="tablist" aria-label="Settimane">
-          {weeks.map((week) => (
+          {activeWeeks.map((week) => (
             <button
               aria-selected={activeWeek === week.id}
               className={`${activeWeek === week.id ? "active" : ""} ${week.completed ? "completed" : ""}`}
@@ -433,7 +626,7 @@ export default function Home() {
                 <span className="exercise-count">
                   {currentExercises.length} {currentExercises.length === 1 ? "esercizio" : "esercizi"}
                 </span>
-                {currentExercises.length > 0 && weeks.length > 1 && (
+                {currentExercises.length > 0 && activeWeeks.length > 1 && (
                   <button className="copy-week-button" onClick={openCopyModal} type="button">
                     Copia esercizi
                   </button>
@@ -452,6 +645,16 @@ export default function Home() {
                     ? "Salvataggio…"
                     : "Completata"}
                 </label>
+                {activeWeekData.completed && (
+                  <button
+                    className="archive-week-button"
+                    disabled={updatingWeekId === activeWeekData.id}
+                    onClick={() => setWeekToArchive(activeWeekData)}
+                    type="button"
+                  >
+                    Archivia
+                  </button>
+                )}
                 <button onClick={() => openWeekEdit(activeWeekData)} type="button">Rinomina</button>
                 <button className="delete-week" onClick={() => setWeekToDelete(activeWeekData)} type="button">Elimina</button>
               </div>
@@ -536,11 +739,174 @@ export default function Home() {
             </div>
           )}
         </section>
+          </>
+        ) : (
+          <>
+            <section className="summary-grid archive-summary" aria-label="Riepilogo archivio">
+              <article className="summary-card">
+                <span className="summary-label">SETTIMANE ARCHIVIATE</span>
+                <strong>{archivedWeeks.length.toString().padStart(2, "0")}</strong>
+                <small>sempre disponibili</small>
+              </article>
+              <article className="summary-card">
+                <span className="summary-label">ESERCIZI CONSERVATI</span>
+                <strong>{archivedExerciseCount.toString().padStart(2, "0")}</strong>
+                <small>con carichi e note</small>
+              </article>
+              <article className="summary-card featured archive-featured">
+                <span className="summary-label">ULTIMO ARCHIVIO</span>
+                <strong>{archivedWeeks.length ? "✓" : "—"}</strong>
+                <small>{formatArchiveDate(archivedWeeks[0]?.archivedAt ?? null)}</small>
+              </article>
+            </section>
+
+            <section className="archive-section">
+              {loading ? (
+                <div className="state-card">
+                  <span className="loader" />
+                  <p>Carico il tuo archivio…</p>
+                </div>
+              ) : archivedWeeks.length === 0 ? (
+                <div className="state-card empty archive-empty">
+                  <div className="empty-icon">▤</div>
+                  <h3>L’archivio è vuoto</h3>
+                  <p>
+                    Completa una settimana e premi “Archivia”: potrai sempre
+                    recuperarla e rivederne esercizi, carichi e note.
+                  </p>
+                  <button className="primary-button" onClick={() => openProgram()}>
+                    Torna al programma
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="archive-grid">
+                    {archivedWeeks.map((week) => {
+                      const weekExercises = exercises.filter(
+                        (exercise) => exercise.week === week.id,
+                      );
+                      const weekSets = weekExercises.reduce(
+                        (sum, exercise) => sum + exercise.sets,
+                        0,
+                      );
+                      return (
+                        <article
+                          className={`archive-card ${reviewedArchiveWeekId === week.id ? "selected" : ""}`}
+                          key={week.id}
+                        >
+                          <div className="archive-card-top">
+                            <span
+                              className="archive-accent"
+                              style={{ backgroundColor: week.accent }}
+                            />
+                            <span className="archive-status">✓ COMPLETATA</span>
+                          </div>
+                          <h2>{week.name}</h2>
+                          <p>Archiviata il {formatArchiveDate(week.archivedAt)}</p>
+                          <div className="archive-card-metrics">
+                            <span><strong>{weekExercises.length}</strong> esercizi</span>
+                            <span><strong>{weekSets}</strong> serie</span>
+                          </div>
+                          <div className="archive-card-actions">
+                            <button
+                              className="secondary-button"
+                              onClick={() => setReviewedArchiveWeekId(week.id)}
+                              type="button"
+                            >
+                              Rivedi
+                            </button>
+                            <button
+                              className="restore-button"
+                              disabled={updatingWeekId === week.id}
+                              onClick={() => restoreWeek(week)}
+                              type="button"
+                            >
+                              {updatingWeekId === week.id ? "Ripristino…" : "Ripristina"}
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  {reviewedArchiveWeek && (
+                    <section className="archive-review" aria-label={`Revisione ${reviewedArchiveWeek.name}`}>
+                      <div className="archive-review-heading">
+                        <div>
+                          <p className="eyebrow">SCHEDA ARCHIVIATA · SOLA LETTURA</p>
+                          <h2>{reviewedArchiveWeek.name}</h2>
+                          <span>
+                            {reviewedExercises.length} {reviewedExercises.length === 1 ? "esercizio" : "esercizi"}
+                          </span>
+                        </div>
+                        <button
+                          className="restore-button"
+                          disabled={updatingWeekId === reviewedArchiveWeek.id}
+                          onClick={() => restoreWeek(reviewedArchiveWeek)}
+                          type="button"
+                        >
+                          {updatingWeekId === reviewedArchiveWeek.id
+                            ? "Ripristino…"
+                            : "Ripristina nel programma"}
+                        </button>
+                      </div>
+                      {reviewedExercises.length === 0 ? (
+                        <div className="archive-no-exercises">
+                          Questa settimana non contiene esercizi.
+                        </div>
+                      ) : (
+                        <div className="exercise-list archive-exercise-list">
+                          {reviewedExercises.map((exercise, index) => (
+                            <article className="exercise-card archived" key={exercise.id}>
+                              <div className="exercise-index">
+                                {String(index + 1).padStart(2, "0")}
+                              </div>
+                              <div className="exercise-main">
+                                <div className="exercise-title-row">
+                                  <div>
+                                    <span className="muscle-tag">
+                                      {exercise.muscleGroup || "ALLENAMENTO"}
+                                    </span>
+                                    <h3>{exercise.name}</h3>
+                                  </div>
+                                  <span className="read-only-badge">SOLA LETTURA</span>
+                                </div>
+                                <div className="metrics">
+                                  <div><span>SERIE</span><strong>{exercise.sets}</strong></div>
+                                  <div><span>RIPETIZIONI</span><strong>{exercise.reps}</strong></div>
+                                  <div>
+                                    <span>CARICO</span>
+                                    <strong>{exercise.weight || "—"}</strong>
+                                    {exercise.baseWeight && exercise.weightPercentage && (
+                                      <small>{exercise.weightPercentage}% di {exercise.baseWeight} kg</small>
+                                    )}
+                                  </div>
+                                </div>
+                                {exercise.notes && (
+                                  <div className="notes">
+                                    <span>NOTE</span>
+                                    <p>{exercise.notes}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  )}
+                </>
+              )}
+            </section>
+          </>
+        )}
       </section>
 
-      <button className="floating-add" aria-label="Nuovo esercizio" onClick={openCreate}>
-        ＋
-      </button>
+      {view === "program" && (
+        <button className="floating-add" aria-label="Nuovo esercizio" onClick={openCreate}>
+          ＋
+        </button>
+      )}
 
       {modalOpen && (
         <div className="modal-backdrop" onMouseDown={closeModal} role="presentation">
@@ -585,7 +951,7 @@ export default function Home() {
                     onChange={(e) => setDraft({ ...draft, week: Number(e.target.value) })}
                     value={draft.week}
                   >
-                    {weeks.map((week) => (
+                    {activeWeeks.map((week) => (
                       <option key={week.id} value={week.id}>{week.name}</option>
                     ))}
                   </select>
@@ -752,7 +1118,7 @@ export default function Home() {
                 onChange={(event) => setCopyTargetWeek(Number(event.target.value))}
                 value={copyTargetWeek ?? ""}
               >
-                {weeks.filter((week) => week.id !== activeWeek).map((week) => (
+                {activeWeeks.filter((week) => week.id !== activeWeek).map((week) => (
                   <option key={week.id} value={week.id}>{week.name}</option>
                 ))}
               </select>
@@ -787,6 +1153,43 @@ export default function Home() {
                 type="button"
               >
                 {saving ? "Copia…" : `Copia ${selectedExerciseIds.length} esercizi`}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {weekToArchive && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-labelledby="archive-week-modal-title"
+            aria-modal="true"
+            className="confirm-modal archive-confirm-modal"
+            role="dialog"
+          >
+            <div className="confirm-icon archive-confirm-icon">▤</div>
+            <p className="eyebrow">ARCHIVIA SETTIMANA</p>
+            <h2 id="archive-week-modal-title">Archiviare “{weekToArchive.name}”?</h2>
+            <p>
+              La scheda verrà rimossa dal programma attivo, ma esercizi, carichi
+              e note resteranno disponibili nell’Archivio. Potrai ripristinarla
+              in qualsiasi momento.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="secondary-button"
+                onClick={() => setWeekToArchive(null)}
+                type="button"
+              >
+                Annulla
+              </button>
+              <button
+                className="primary-button"
+                disabled={updatingWeekId === weekToArchive.id}
+                onClick={archiveWeek}
+                type="button"
+              >
+                {updatingWeekId === weekToArchive.id ? "Archiviazione…" : "Archivia settimana"}
               </button>
             </div>
           </section>
@@ -853,7 +1256,7 @@ export default function Home() {
       )}
 
       {toast && <div className="toast" role="status">✓ {toast}</div>}
-      {error && !modalOpen && !weekModalOpen && (
+      {error && !modalOpen && !weekModalOpen && !copyModalOpen && !weekToArchive && (
         <button className="error-banner" onClick={() => setError("")}>
           {error} <span>×</span>
         </button>
