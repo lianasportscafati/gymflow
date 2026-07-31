@@ -5,15 +5,16 @@ import { calculateWeight } from "../lib/weight";
 
 type Plan = { id: number; name: string; position: number; archived: boolean; archivedAt: string | null };
 type Week = { id: number; planId: number; name: string; accent: string; position: number; completed: boolean };
+type Workout = { id: number; weekId: number; name: string; position: number };
 type Exercise = {
-  id: number; week: number; name: string; muscleGroup: string; sets: number; reps: string;
+  id: number; week: number; workoutId: number | null; name: string; muscleGroup: string; sets: number; reps: string;
   weight: string; baseWeight: string; weightPercentage: number | null; notes: string; position: number;
 };
 type Draft = Omit<Exercise, "id" | "position">;
 type View = "program" | "archive";
 
-const emptyDraft = (week: number): Draft => ({
-  week, name: "", muscleGroup: "", sets: 3, reps: "10", weight: "",
+const emptyDraft = (week: number, workoutId: number | null): Draft => ({
+  week, workoutId, name: "", muscleGroup: "", sets: 3, reps: "10", weight: "",
   baseWeight: "", weightPercentage: null, notes: "",
 });
 const dateLabel = (value: string | null) =>
@@ -22,9 +23,11 @@ const dateLabel = (value: string | null) =>
 export default function Home() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [activePlanId, setActivePlanId] = useState<number | null>(null);
   const [activeWeekId, setActiveWeekId] = useState<number | null>(null);
+  const [activeWorkoutId, setActiveWorkoutId] = useState<number | null>(null);
   const [view, setView] = useState<View>("program");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -34,27 +37,31 @@ export default function Home() {
   const [planName, setPlanName] = useState("");
   const [weekModal, setWeekModal] = useState<"create" | "rename" | null>(null);
   const [weekName, setWeekName] = useState("");
+  const [workoutModal, setWorkoutModal] = useState<"create" | "rename" | null>(null);
+  const [workoutName, setWorkoutName] = useState("");
   const [exerciseModal, setExerciseModal] = useState(false);
   const [editingExerciseId, setEditingExerciseId] = useState<number | null>(null);
-  const [draft, setDraft] = useState<Draft>(emptyDraft(0));
-  const [confirm, setConfirm] = useState<"archive-plan" | "delete-plan" | "delete-week" | "delete-exercise" | null>(null);
+  const [draft, setDraft] = useState<Draft>(emptyDraft(0, null));
+  const [confirm, setConfirm] = useState<"archive-plan" | "delete-plan" | "delete-week" | "delete-workout" | "delete-exercise" | null>(null);
   const [deleteExerciseId, setDeleteExerciseId] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true); setError("");
     try {
-      const [planResponse, weekResponse, exerciseResponse] = await Promise.all([
+      const [planResponse, weekResponse, workoutResponse, exerciseResponse] = await Promise.all([
         fetch("/api/plans", { cache: "no-store" }),
         fetch("/api/weeks", { cache: "no-store" }),
+        fetch("/api/workouts", { cache: "no-store" }),
         fetch("/api/exercises", { cache: "no-store" }),
       ]);
-      const [planData, weekData, exerciseData] = await Promise.all([
-        planResponse.json(), weekResponse.json(), exerciseResponse.json(),
+      const [planData, weekData, workoutData, exerciseData] = await Promise.all([
+        planResponse.json(), weekResponse.json(), workoutResponse.json(), exerciseResponse.json(),
       ]);
       if (!planResponse.ok) throw new Error(planData.error);
       if (!weekResponse.ok) throw new Error(weekData.error);
+      if (!workoutResponse.ok) throw new Error(workoutData.error);
       if (!exerciseResponse.ok) throw new Error(exerciseData.error);
-      setPlans(planData.plans); setWeeks(weekData.weeks); setExercises(exerciseData.exercises);
+      setPlans(planData.plans); setWeeks(weekData.weeks); setWorkouts(workoutData.workouts); setExercises(exerciseData.exercises);
       const availablePlans = planData.plans.filter((plan: Plan) => !plan.archived);
       const first = availablePlans.length === 1 ? availablePlans[0] : undefined;
       setActivePlanId(first?.id ?? null);
@@ -79,8 +86,11 @@ export default function Home() {
   const planWeeks = useMemo(() => weeks.filter((week) => week.planId === activePlanId)
     .sort((a, b) => a.position - b.position), [weeks, activePlanId]);
   const activeWeek = planWeeks.find((week) => week.id === activeWeekId) ?? planWeeks[0] ?? null;
-  const weekExercises = useMemo(() => exercises.filter((item) => item.week === activeWeek?.id)
-    .sort((a, b) => a.position - b.position), [exercises, activeWeek]);
+  const weekWorkouts = useMemo(() => workouts.filter((workout) => workout.weekId === activeWeek?.id)
+    .sort((a, b) => a.position - b.position), [workouts, activeWeek]);
+  const activeWorkout = weekWorkouts.find((workout) => workout.id === activeWorkoutId) ?? weekWorkouts[0] ?? null;
+  const workoutExercises = useMemo(() => exercises.filter((item) => item.workoutId === activeWorkout?.id)
+    .sort((a, b) => a.position - b.position), [exercises, activeWorkout]);
   const planExerciseCount = exercises.filter((item) => planWeeks.some((week) => week.id === item.week)).length;
   const planSets = exercises.filter((item) => planWeeks.some((week) => week.id === item.week))
     .reduce((sum, item) => sum + item.sets, 0);
@@ -140,6 +150,7 @@ export default function Home() {
       const removedWeeks = new Set(planWeeks.map((week) => week.id));
       const remaining = plans.filter((plan) => plan.id !== activePlan.id);
       setPlans(remaining); setWeeks((current) => current.filter((week) => week.planId !== activePlan.id));
+      setWorkouts((current) => current.filter((workout) => !removedWeeks.has(workout.weekId)));
       setExercises((current) => current.filter((item) => !removedWeeks.has(item.week)));
       const remainingActive = remaining.filter((plan) => !plan.archived);
       const next = activePlan.archived
@@ -177,21 +188,47 @@ export default function Home() {
     try {
       await api(`/api/weeks/${activeWeek.id}`, "DELETE");
       setWeeks((current) => current.filter((week) => week.id !== activeWeek.id));
+      setWorkouts((current) => current.filter((workout) => workout.weekId !== activeWeek.id));
       setExercises((current) => current.filter((item) => item.week !== activeWeek.id));
       setConfirm(null); setToast("Settimana eliminata");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Errore"); }
     finally { setSaving(false); }
   };
 
+  const saveWorkout = async (event: FormEvent) => {
+    event.preventDefault(); if (!activeWeek) return; setSaving(true); setError("");
+    try {
+      const data = workoutModal === "create"
+        ? await api("/api/workouts", "POST", { weekId: activeWeek.id, name: workoutName })
+        : await api(`/api/workouts/${activeWorkout?.id}`, "PUT", { name: workoutName });
+      setWorkouts((current) => workoutModal === "create"
+        ? [...current, data.workout]
+        : current.map((workout) => workout.id === data.workout.id ? data.workout : workout));
+      setActiveWorkoutId(data.workout.id); setWorkoutModal(null);
+      setToast(workoutModal === "create" ? "Allenamento aggiunto" : "Allenamento rinominato");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Errore"); }
+    finally { setSaving(false); }
+  };
+  const deleteWorkout = async () => {
+    if (!activeWorkout) return; setSaving(true);
+    try {
+      await api(`/api/workouts/${activeWorkout.id}`, "DELETE");
+      setWorkouts((current) => current.filter((workout) => workout.id !== activeWorkout.id));
+      setExercises((current) => current.filter((exercise) => exercise.workoutId !== activeWorkout.id));
+      setActiveWorkoutId(null); setConfirm(null); setToast("Allenamento eliminato");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Errore"); }
+    finally { setSaving(false); }
+  };
+
   const openExercise = (exercise?: Exercise) => {
-    if (!activeWeek) return;
+    if (!activeWeek || !activeWorkout) return;
     setEditingExerciseId(exercise?.id ?? null);
     setDraft(exercise ? {
-      week: exercise.week, name: exercise.name, muscleGroup: exercise.muscleGroup, sets: exercise.sets,
+      week: exercise.week, workoutId: exercise.workoutId, name: exercise.name, muscleGroup: exercise.muscleGroup, sets: exercise.sets,
       reps: exercise.reps, weight: exercise.weight,
       baseWeight: exercise.baseWeight || exercise.weight.replace(/[^\d,.-]/g, ""),
       weightPercentage: exercise.weightPercentage ?? (exercise.weight ? 100 : null), notes: exercise.notes,
-    } : emptyDraft(activeWeek.id));
+    } : emptyDraft(activeWeek.id, activeWorkout.id));
     setExerciseModal(true);
   };
   const saveExercise = async (event: FormEvent) => {
@@ -312,7 +349,7 @@ export default function Home() {
               <article className="summary-card featured"><span className="summary-label">SERIE</span><strong>{String(planSets).padStart(2, "0")}</strong><small>programmate</small></article>
             </section>
             <div className="mobile-weeks" role="tablist" aria-label="Settimane">
-              {planWeeks.map((week) => <button className={`${activeWeek?.id === week.id ? "active" : ""} ${week.completed ? "completed" : ""}`} key={week.id} onClick={() => setActiveWeekId(week.id)}>{week.completed ? "✓ " : ""}{week.name}</button>)}
+              {planWeeks.map((week) => <button className={`${activeWeek?.id === week.id ? "active" : ""} ${week.completed ? "completed" : ""}`} key={week.id} onClick={() => { setActiveWeekId(week.id); setActiveWorkoutId(null); }}>{week.completed ? "✓ " : ""}{week.name}</button>)}
               <button className="mobile-week-add" onClick={() => { setWeekName(`Settimana ${planWeeks.length + 1}`); setWeekModal("create"); }}>＋</button>
             </div>
             <section className={`week-section ${activeWeek?.completed ? "completed" : ""}`}>
@@ -323,9 +360,18 @@ export default function Home() {
                   <button className="delete-week" onClick={() => setConfirm("delete-week")}>Elimina</button>
                 </div>}
               </div>
+              {activeWeek && <div className="workout-tabs" role="tablist" aria-label={`Allenamenti di ${activeWeek.name}`}>
+                {weekWorkouts.map((workout) => <button className={activeWorkout?.id === workout.id ? "active" : ""} key={workout.id} onClick={() => setActiveWorkoutId(workout.id)} role="tab">{workout.name}</button>)}
+                {!activePlan.archived && <button className="workout-add" onClick={() => { setWorkoutName(`Allenamento ${String.fromCharCode(65 + weekWorkouts.length)}`); setWorkoutModal("create"); }}>＋ Allenamento</button>}
+              </div>}
+              {activeWorkout && <div className="workout-heading">
+                <div><p className="eyebrow">ALLENAMENTO SELEZIONATO</p><h3>{activeWorkout.name}</h3></div>
+                {!activePlan.archived && <div><button onClick={() => { setWorkoutName(activeWorkout.name); setWorkoutModal("rename"); }}>Rinomina</button><button className="delete-week" onClick={() => setConfirm("delete-workout")}>Elimina</button></div>}
+              </div>}
               {!activeWeek ? <div className="state-card empty"><h3>{activePlan.archived ? "Scheda senza settimane" : "Aggiungi una settimana"}</h3><p>Questa scheda è pronta per essere organizzata.</p>{!activePlan.archived && <button className="primary-button" onClick={() => { setWeekName("Settimana 1"); setWeekModal("create"); }}>Aggiungi settimana</button>}</div>
-                : !weekExercises.length ? <div className="state-card empty"><h3>Settimana vuota</h3><p>{activePlan.archived ? "Non contiene esercizi." : "Aggiungi il primo esercizio."}</p>{!activePlan.archived && <button className="primary-button" onClick={() => openExercise()}>Aggiungi esercizio</button>}</div>
-                : <div className="exercise-list">{weekExercises.map((exercise, index) => <article className="exercise-card" key={exercise.id}>
+                : !activeWorkout ? <div className="state-card empty"><h3>Nessun allenamento</h3><p>{activePlan.archived ? "Questa settimana non contiene allenamenti." : "Crea Allenamento A, Allenamento B o tutti quelli che ti servono."}</p>{!activePlan.archived && <button className="primary-button" onClick={() => { setWorkoutName("Allenamento A"); setWorkoutModal("create"); }}>Crea Allenamento A</button>}</div>
+                : !workoutExercises.length ? <div className="state-card empty"><h3>{activeWorkout.name} è vuoto</h3><p>{activePlan.archived ? "Non contiene esercizi." : "Aggiungi il primo esercizio."}</p>{!activePlan.archived && <button className="primary-button" onClick={() => openExercise()}>Aggiungi esercizio</button>}</div>
+                : <div className="exercise-list">{workoutExercises.map((exercise, index) => <article className="exercise-card" key={exercise.id}>
                     <div className="exercise-index">{String(index + 1).padStart(2, "0")}</div><div className="exercise-main">
                       <div className="exercise-title-row"><div><span className="muscle-tag">{exercise.muscleGroup || "ALLENAMENTO"}</span><h3>{exercise.name}</h3></div>
                         {!activePlan.archived && <div className="card-actions"><button aria-label={`Modifica ${exercise.name}`} onClick={() => openExercise(exercise)}>✎</button><button className="delete" aria-label={`Elimina ${exercise.name}`} onClick={() => { setDeleteExerciseId(exercise.id); setConfirm("delete-exercise"); }}>×</button></div>}</div>
@@ -341,7 +387,7 @@ export default function Home() {
           </>
         )}
       </section>
-      {activeWeek && !activePlan?.archived && <button className="floating-add" aria-label="Nuovo esercizio" onClick={() => openExercise()}>＋</button>}
+      {activeWorkout && !activePlan?.archived && <button className="floating-add" aria-label="Nuovo esercizio" onClick={() => openExercise()}>＋</button>}
       {toast && <div className="toast" role="status">{toast}</div>}
 
       {planModal && <Modal title={planModal === "create" ? "Nuova scheda" : "Rinomina scheda"} close={() => setPlanModal(null)}>
@@ -350,11 +396,14 @@ export default function Home() {
       {weekModal && <Modal title={weekModal === "create" ? "Nuova settimana" : "Rinomina settimana"} close={() => setWeekModal(null)}>
         <form onSubmit={saveWeek}><label>Nome settimana *<input autoFocus value={weekName} onChange={(event) => setWeekName(event.target.value)} /></label><ModalActions saving={saving} close={() => setWeekModal(null)} /></form>
       </Modal>}
+      {workoutModal && <Modal title={workoutModal === "create" ? "Nuovo allenamento" : "Rinomina allenamento"} close={() => setWorkoutModal(null)}>
+        <form onSubmit={saveWorkout}><label>Nome allenamento *<input autoFocus value={workoutName} onChange={(event) => setWorkoutName(event.target.value)} placeholder="Es. Allenamento A" /></label><ModalActions saving={saving} close={() => setWorkoutModal(null)} /></form>
+      </Modal>}
       {exerciseModal && <Modal title={editingExerciseId ? "Modifica esercizio" : "Nuovo esercizio"} close={() => setExerciseModal(false)}>
         <form onSubmit={saveExercise}><div className="form-grid">
           <label className="full">Nome esercizio *<input autoFocus value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
           <label>Gruppo muscolare<input value={draft.muscleGroup} onChange={(e) => setDraft({ ...draft, muscleGroup: e.target.value })} /></label>
-          <label>Settimana<select value={draft.week} onChange={(e) => setDraft({ ...draft, week: Number(e.target.value) })}>{planWeeks.map((week) => <option value={week.id} key={week.id}>{week.name}</option>)}</select></label>
+          <label>Allenamento<select value={draft.workoutId ?? ""} onChange={(e) => setDraft({ ...draft, workoutId: Number(e.target.value) })}>{weekWorkouts.map((workout) => <option value={workout.id} key={workout.id}>{workout.name}</option>)}</select></label>
           <label>Serie<input type="number" min="1" value={draft.sets} onChange={(e) => setDraft({ ...draft, sets: Number(e.target.value) })} /></label>
           <label>Ripetizioni<input value={draft.reps} onChange={(e) => setDraft({ ...draft, reps: e.target.value })} /></label>
           <label>Carico base (kg)<input inputMode="decimal" value={draft.baseWeight} onChange={(e) => setDraft({ ...draft, baseWeight: e.target.value })} placeholder="Es. 60" /></label>
@@ -369,7 +418,7 @@ export default function Home() {
       </Modal>}
       {confirm && <Modal title={confirm === "archive-plan" ? "Archiviare la scheda?" : "Conferma eliminazione"} close={() => setConfirm(null)}>
         <p>{confirm === "archive-plan" ? "La Scheda, con tutte le settimane e gli esercizi, passerà nell’archivio. Potrai visualizzarla, modificarla e ripristinarla." : "Questa eliminazione rimuove definitivamente il contenuto selezionato."}</p>
-        <div className="modal-actions"><button className="secondary-button" onClick={() => setConfirm(null)}>Annulla</button><button className={confirm === "archive-plan" ? "primary-button" : "danger-button"} disabled={saving} onClick={() => void (confirm === "archive-plan" ? archiveOrRestorePlan(true) : confirm === "delete-plan" ? deletePlan() : confirm === "delete-week" ? deleteWeek() : deleteExercise())}>{saving ? "Attendi…" : confirm === "archive-plan" ? "Archivia tutto" : "Elimina"}</button></div>
+        <div className="modal-actions"><button className="secondary-button" onClick={() => setConfirm(null)}>Annulla</button><button className={confirm === "archive-plan" ? "primary-button" : "danger-button"} disabled={saving} onClick={() => void (confirm === "archive-plan" ? archiveOrRestorePlan(true) : confirm === "delete-plan" ? deletePlan() : confirm === "delete-week" ? deleteWeek() : confirm === "delete-workout" ? deleteWorkout() : deleteExercise())}>{saving ? "Attendi…" : confirm === "archive-plan" ? "Archivia tutto" : "Elimina"}</button></div>
       </Modal>}
     </main>
   );
