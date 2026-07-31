@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { ensureSchema, getAuthenticatedEmail, getDb } from "../../../../db";
 import { exercises, weeks } from "../../../../db/schema";
+import { calculateWeight } from "../../../../lib/weight";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -29,18 +30,21 @@ function cleanInput(payload: ExerciseInput) {
   if (!name) throw new Error("Inserisci il nome dell’esercizio.");
   if (!Number.isInteger(week) || week < 1) throw new Error("Seleziona una settimana valida.");
   if (!Number.isInteger(sets) || sets < 1 || sets > 99) throw new Error("Il numero di serie non è valido.");
+  const baseWeight = payload.baseWeight?.trim() ?? "";
+  const rawPercentage = Number(payload.weightPercentage);
+  const weightPercentage =
+    payload.weightPercentage === null || payload.weightPercentage === undefined || !Number.isFinite(rawPercentage)
+      ? null
+      : Math.max(1, Math.min(100, Math.round(rawPercentage)));
   return {
     week,
     name,
     muscleGroup: payload.muscleGroup?.trim() ?? "",
     sets,
     reps: payload.reps?.trim() || "—",
-    weight: payload.weight?.trim() ?? "",
-    baseWeight: payload.baseWeight?.trim() ?? "",
-    weightPercentage:
-      payload.weightPercentage === null || payload.weightPercentage === undefined
-        ? null
-        : Math.max(1, Math.min(1000, Math.round(Number(payload.weightPercentage)))),
+    weight: calculateWeight(baseWeight, weightPercentage) || payload.weight?.trim() || "",
+    baseWeight,
+    weightPercentage,
     notes: payload.notes?.trim() ?? "",
     updatedAt: new Date().toISOString(),
   };
