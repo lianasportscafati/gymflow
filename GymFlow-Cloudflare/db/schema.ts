@@ -48,6 +48,7 @@ export const workouts = sqliteTable("workouts", {
   weekId: integer("week_id").notNull(),
   name: text("name").notNull(),
   position: integer("position").notNull().default(0),
+  completed: integer("completed", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

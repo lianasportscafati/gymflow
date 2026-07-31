@@ -81,6 +81,7 @@ export function ensureSchema() {
           week_id INTEGER NOT NULL,
           name TEXT NOT NULL,
           position INTEGER NOT NULL DEFAULT 0,
+          completed INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
@@ -185,6 +186,12 @@ export function ensureSchema() {
     const exerciseTableInfo = await database
       .prepare("PRAGMA table_info(exercises)")
       .all<{ name: string }>();
+    const workoutTableInfo = await database
+      .prepare("PRAGMA table_info(workouts)")
+      .all<{ name: string }>();
+    if (!workoutTableInfo.results.some((column) => column.name === "completed")) {
+      await database.prepare("ALTER TABLE workouts ADD COLUMN completed INTEGER NOT NULL DEFAULT 0").run();
+    }
     if (!exerciseTableInfo.results.some((column) => column.name === "workout_id")) {
       await database.prepare("ALTER TABLE exercises ADD COLUMN workout_id INTEGER").run();
     }
