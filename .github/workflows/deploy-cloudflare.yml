@@ -71,7 +71,7 @@ jobs:
           npm run lint
           npm test
 
-      - name: Apply archive migration when needed
+      - name: Apply database migrations when needed
         shell: bash
         run: |
           schema_file="$(mktemp)"
@@ -93,6 +93,21 @@ jobs:
             npx wrangler d1 execute gymflow-db \
               --remote \
               --file drizzle/0007_week_archive.sql
+          fi
+
+          plans_schema_file="$(mktemp)"
+          npx wrangler d1 execute gymflow-db \
+            --remote \
+            --json \
+            --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'workout_plans';" \
+            >"${plans_schema_file}"
+          if jq -e '.. | objects | select(.name? == "workout_plans")' \
+            >/dev/null "${plans_schema_file}"; then
+            echo "Workout plan migration already applied."
+          else
+            npx wrangler d1 execute gymflow-db \
+              --remote \
+              --file drizzle/0008_workout_plans.sql
           fi
 
       - name: Deploy Worker
