@@ -7,6 +7,8 @@ import { GET as getWeeks, POST as createWeek } from "../app/api/weeks/route";
 import { PUT as updateWeek } from "../app/api/weeks/[id]/route";
 import { GET as getExercises, POST as createExercise } from "../app/api/exercises/route";
 import { PUT as updateExercise } from "../app/api/exercises/[id]/route";
+import { GET as getWorkouts, POST as createWorkout } from "../app/api/workouts/route";
+import { DELETE as deleteWorkout, PUT as updateWorkout } from "../app/api/workouts/[id]/route";
 
 const userA = "utente-a@example.com";
 const userB = "utente-b@example.com";
@@ -60,9 +62,20 @@ test("scheda completa: creazione, contenuto, archivio modificabile, ripristino e
   const week = (await json<{ week: { id: number; planId: number } }>(weekResponse)).week;
   assert.equal(week.planId, plan.id);
 
+  const workoutAResponse = await createWorkout(
+    request("/api/workouts", userA, "POST", { weekId: week.id, name: "Allenamento A" }),
+  );
+  const workoutA = (await json<{ workout: { id: number; name: string } }>(workoutAResponse)).workout;
+  assert.equal(workoutAResponse.status, 201);
+  const workoutBResponse = await createWorkout(
+    request("/api/workouts", userA, "POST", { weekId: week.id, name: "Allenamento B" }),
+  );
+  const workoutB = (await json<{ workout: { id: number } }>(workoutBResponse)).workout;
+  assert.equal(workoutBResponse.status, 201);
+
   const exerciseResponse = await createExercise(
     request("/api/exercises", userA, "POST", {
-      week: week.id, name: "Squat", muscleGroup: "Gambe", sets: 4, reps: "8",
+      week: week.id, workoutId: workoutA.id, name: "Squat", muscleGroup: "Gambe", sets: 4, reps: "8",
       baseWeight: "60", weightPercentage: 60,
     }),
   );
@@ -101,10 +114,24 @@ test("scheda completa: creazione, contenuto, archivio modificabile, ripristino e
   assert.equal(editArchivedWeek.status, 200, "le settimane archiviate devono restare modificabili");
   const editArchivedExercise = await updateExercise(
     request(`/api/exercises/${exercise.id}`, userA, "PUT", {
-      week: week.id, name: "Back squat", muscleGroup: "Gambe", sets: 5, reps: "5", weight: "70 kg",
+      week: week.id, workoutId: workoutA.id, name: "Back squat", muscleGroup: "Gambe", sets: 5, reps: "5", weight: "70 kg",
     }), params(exercise.id),
   );
   assert.equal(editArchivedExercise.status, 200, "gli esercizi archiviati devono restare modificabili");
+
+  const renamedWorkout = await updateWorkout(
+    request(`/api/workouts/${workoutB.id}`, userA, "PUT", { name: "Allenamento B forza" }), params(workoutB.id),
+  );
+  assert.equal(renamedWorkout.status, 200);
+  assert.equal((await json<{ workout: { name: string } }>(renamedWorkout)).workout.name, "Allenamento B forza");
+  const listedWorkouts = await json<{ workouts: Array<{ id: number }> }>(
+    await getWorkouts(request("/api/workouts", userA)),
+  );
+  assert.ok(listedWorkouts.workouts.some((item) => item.id === workoutA.id));
+  const deletedWorkout = await deleteWorkout(
+    request(`/api/workouts/${workoutB.id}`, userA, "DELETE"), params(workoutB.id),
+  );
+  assert.equal(deletedWorkout.status, 200);
 
   const otherUserEdit = await updatePlan(
     request(`/api/plans/${plan.id}`, userB, "PUT", { name: "Intrusione" }), params(plan.id),
