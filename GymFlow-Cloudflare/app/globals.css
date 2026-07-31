@@ -16,6 +16,7 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-manrope), Arial, sans-serif;
+  font-size: 16px;
 }
 button, input, textarea, select { font: inherit; }
 button { color: inherit; }
@@ -482,9 +483,34 @@ input:focus, textarea:focus, select:focus { border-color: #879b59; box-shadow: 0
 .error-banner span { margin-left: 14px; }
 .floating-add, .mobile-weeks { display: none; }
 
+.plan-toolbar {
+  align-items: center;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: flex;
+  justify-content: space-between;
+  margin: 30px 0 0;
+  padding: 18px 20px;
+}
+.plan-toolbar > div:first-child { display: flex; flex-direction: column; gap: 8px; }
+.plan-toolbar small { color: var(--muted); font-size: 13px; }
+.archive-caption { margin-top: 28px; }
+.modal form > label {
+  color: #565b53;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  font-weight: 750;
+  gap: 9px;
+}
+.error-banner { align-items: center; display: flex; gap: 12px; }
+.error-banner button { background: transparent; border: 0; color: white; cursor: pointer; font-size: 20px; }
+
 @media (max-width: 850px) {
   .sidebar { display: none; }
-  .content { margin: 0; padding: 28px 20px 95px; }
+  body { font-size: 18px; }
+  .content { margin: 0; padding: 20px 16px 105px; }
   .mobile-view-switch {
     background: #e7e9e3;
     border-radius: 11px;
@@ -499,41 +525,56 @@ input:focus, textarea:focus, select:focus { border-color: #879b59; box-shadow: 0
     border: 0;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 16px;
     font-weight: 800;
     padding: 10px 12px;
   }
   .mobile-view-switch button.active { background: white; box-shadow: 0 2px 8px rgba(20, 23, 18, .06); }
   .mobile-view-switch button span { background: var(--ink); border-radius: 999px; color: var(--lime); margin-left: 4px; padding: 2px 6px; }
   .desktop-add { display: none; }
+  .topbar h1 { font-size: clamp(27px, 8vw, 38px); line-height: 1.08; }
+  .eyebrow { font-size: 12px; }
+  .plan-toolbar { align-items: stretch; flex-direction: column; gap: 18px; margin-top: 22px; padding: 17px; }
+  .plan-toolbar .week-heading-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .plan-toolbar .week-heading-actions button { min-height: 48px; }
   .summary-grid { grid-template-columns: 1fr 1fr; margin: 28px 0 24px; }
   .summary-card { min-height: 112px; padding: 17px; }
   .summary-card.featured { grid-column: 1 / -1; min-height: 102px; }
   .summary-card strong { font-size: 30px; margin-top: 17px; }
   .mobile-weeks { background: #e9ebe5; border-radius: 11px; display: flex; gap: 4px; margin-bottom: 29px; overflow-x: auto; padding: 4px; }
-  .mobile-weeks button { background: transparent; border: 0; border-radius: 8px; cursor: pointer; flex: 0 0 auto; font-size: 11px; font-weight: 750; padding: 10px 14px; }
+  .mobile-weeks button { background: transparent; border: 0; border-radius: 8px; cursor: pointer; flex: 0 0 auto; font-size: 16px; font-weight: 750; min-height: 46px; padding: 10px 14px; }
   .mobile-weeks button.active { background: white; box-shadow: 0 2px 8px rgba(20, 23, 18, .06); }
   .mobile-weeks button.completed { color: #526a24; }
   .mobile-weeks button.mobile-week-add { background: var(--ink); color: var(--lime); margin-left: auto; min-width: 38px; }
   .floating-add { align-items: center; background: var(--ink); border: 0; border-radius: 50%; bottom: 20px; color: var(--lime); display: flex; font-size: 28px; height: 54px; justify-content: center; position: fixed; right: 20px; width: 54px; z-index: 10; }
+  .primary-button, .secondary-button, .restore-button, .danger-button { font-size: 16px; min-height: 48px; }
+  .summary-label, .section-heading p, .muscle-tag, .metrics span, .notes span { font-size: 11px; }
+  .summary-card small, .state-card p, .notes p { font-size: 15px; }
+  .exercise-title-row h3 { font-size: 19px; }
+  .metrics strong { font-size: 17px; }
+  input, textarea, select { font-size: 16px; min-height: 48px; }
+  .form-grid label, .modal form > label { font-size: 15px; }
+  .card-actions button, .close-button { min-height: 44px; min-width: 44px; }
+  .week-heading-actions button, .week-complete-button { font-size: 14px; min-height: 44px; }
+  .toast, .error-banner { bottom: 84px; font-size: 15px; max-width: calc(100vw - 32px); width: max-content; }
   .archive-review-heading { gap: 16px; }
 }
 
 @media (max-width: 540px) {
-  .topbar h1 { font-size: 30px; }
+  .topbar h1 { font-size: 29px; }
   .summary-grid { gap: 8px; }
   .summary-card { border-radius: 11px; }
   .exercise-card { grid-template-columns: 44px 1fr; }
   .exercise-main { padding: 16px 14px; }
   .metrics { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); }
   .metrics > div { border-right: 0; min-width: 0; padding: 0; }
-  .exercise-title-row h3 { font-size: 15px; }
+  .exercise-title-row h3 { font-size: 18px; }
   .section-heading { align-items: flex-end; flex-wrap: wrap; gap: 12px; }
   .week-heading-actions .exercise-count { display: none; }
   .week-heading-actions { gap: 4px; width: 100%; }
   .week-heading-actions .week-complete-button { flex: 1; }
   .week-heading-actions button,
-  .week-heading-actions .week-complete-button { min-height: 34px; padding: 6px 7px; }
+  .week-heading-actions .week-complete-button { min-height: 44px; padding: 8px 10px; }
   .form-grid { grid-template-columns: 1fr; }
   .form-grid label.full { grid-column: auto; }
   .modal { padding: 21px; }
