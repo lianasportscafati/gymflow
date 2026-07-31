@@ -218,7 +218,10 @@ export async function ensureUserWeeks(ownerEmail: string) {
     .prepare("SELECT id FROM workout_plans WHERE owner_email = ? ORDER BY position, id LIMIT 1")
     .bind(ownerEmail)
     .first<{ id: number }>();
-  if (!defaultPlan) throw new Error("Impossibile inizializzare la scheda.");
+  // If the user deliberately deleted every plan, keep the account empty.
+  // The initialization markers prevent the starter plan from being recreated
+  // on refresh; a new plan can still be created explicitly through the API.
+  if (!defaultPlan) return;
 
   await database.batch([
     database
