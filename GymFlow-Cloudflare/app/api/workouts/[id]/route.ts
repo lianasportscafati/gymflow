@@ -14,9 +14,18 @@ export async function PUT(request: Request, { params }: Params) {
     await ensureSchema();
     const ownerEmail = getAuthenticatedEmail(request);
     const id = parseId((await params).id);
-    const name = ((await request.json()) as { name?: string }).name?.trim() ?? "";
-    if (!name) return Response.json({ error: "Inserisci il nome dell’allenamento." }, { status: 400 });
-    const [workout] = await getDb().update(workouts).set({ name, updatedAt: new Date().toISOString() })
+    const payload = (await request.json()) as { name?: string; completed?: boolean };
+    const update: { name?: string; completed?: boolean; updatedAt: string } = { updatedAt: new Date().toISOString() };
+    if (payload.name !== undefined) {
+      const name = payload.name.trim();
+      if (!name) return Response.json({ error: "Inserisci il nome dell’allenamento." }, { status: 400 });
+      update.name = name;
+    }
+    if (typeof payload.completed === "boolean") update.completed = payload.completed;
+    if (update.name === undefined && update.completed === undefined) {
+      return Response.json({ error: "Nessuna modifica valida ricevuta." }, { status: 400 });
+    }
+    const [workout] = await getDb().update(workouts).set(update)
       .where(and(eq(workouts.id, id), eq(workouts.ownerEmail, ownerEmail))).returning();
     if (!workout) return Response.json({ error: "Allenamento non trovato." }, { status: 404 });
     return Response.json({ workout });
