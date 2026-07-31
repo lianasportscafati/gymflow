@@ -1,61 +1,27 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { Miniflare } from "miniflare";
-import {
-  GET as getWeeks,
-  POST as createWeek,
-} from "../app/api/weeks/route";
-import {
-  DELETE as deleteWeek,
-  PUT as updateWeek,
-} from "../app/api/weeks/[id]/route";
-import {
-  GET as getExercises,
-  POST as createExercise,
-} from "../app/api/exercises/route";
-import {
-  DELETE as deleteExercise,
-  PUT as updateExercise,
-} from "../app/api/exercises/[id]/route";
-import { POST as copyExercises } from "../app/api/exercises/copy/route";
+import { GET as getPlans, POST as createPlan } from "../app/api/plans/route";
+import { DELETE as deletePlan, PUT as updatePlan } from "../app/api/plans/[id]/route";
+import { GET as getWeeks, POST as createWeek } from "../app/api/weeks/route";
+import { PUT as updateWeek } from "../app/api/weeks/[id]/route";
+import { GET as getExercises, POST as createExercise } from "../app/api/exercises/route";
+import { PUT as updateExercise } from "../app/api/exercises/[id]/route";
 
 const userA = "utente-a@example.com";
 const userB = "utente-b@example.com";
 let miniflare: Miniflare;
 
-type WeekRecord = {
-  id: number;
-  name: string;
-  completed: boolean;
-  archived: boolean;
-  archivedAt: string | null;
-};
-
-type ExerciseRecord = {
-  id: number;
-  name: string;
-};
-
-function request(
-  path: string,
-  email?: string,
-  method = "GET",
-  body?: Record<string, unknown>,
-) {
+const request = (path: string, email?: string, method = "GET", body?: Record<string, unknown>) => {
   const headers = new Headers();
   if (email) headers.set("cf-access-authenticated-user-email", email);
   if (body) headers.set("content-type", "application/json");
   return new Request(`https://gymflow.test${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
+    method, headers, body: body ? JSON.stringify(body) : undefined,
   });
-}
-
-async function json<T>(response: Response) {
-  const value = await response.json();
-  return value as T;
-}
+};
+const json = async <T>(response: Response) => await response.json() as T;
+const params = (id: number) => ({ params: Promise.resolve({ id: String(id) }) });
 
 before(async () => {
   miniflare = new Miniflare({
@@ -64,225 +30,105 @@ before(async () => {
     d1Databases: ["DB"],
   });
   const DB = await miniflare.getD1Database("DB");
-  (globalThis as typeof globalThis & { __GYMFLOW_ENV__?: { DB: unknown } })
-    .__GYMFLOW_ENV__ = { DB };
+  (globalThis as typeof globalThis & { __GYMFLOW_ENV__?: { DB: unknown } }).__GYMFLOW_ENV__ = { DB };
 });
-
 after(() => {
-  delete (globalThis as typeof globalThis & { __GYMFLOW_ENV__?: unknown })
-    .__GYMFLOW_ENV__;
-  // In alcuni runtime Workerd la Promise di dispose resta pendente anche dopo
-  // aver rilasciato tutte le risorse. Avviamo comunque la pulizia senza
-  // trattenere il test runner su una Promise ormai priva di handle attivi.
+  delete (globalThis as typeof globalThis & { __GYMFLOW_ENV__?: unknown }).__GYMFLOW_ENV__;
   void miniflare.dispose();
 });
 
-test("completamento, archivio, ripristino, CRUD e isolamento persistono dall'inizio alla fine", async () => {
-  const unauthorized = await getWeeks(request("/api/weeks"));
-  assert.notEqual(unauthorized.status, 200);
+test("scheda completa: creazione, contenuto, archivio modificabile, ripristino ed eliminazione", async () => {
+  assert.notEqual((await getPlans(request("/api/plans"))).status, 200);
 
-  const initialResponse = await getWeeks(request("/api/weeks", userA));
-  assert.equal(initialResponse.status, 200);
-  const initial = await json<{ weeks: WeekRecord[] }>(initialResponse);
-  assert.equal(initial.weeks.length, 4);
-  const firstWeek = initial.weeks[0];
-  assert.equal(firstWeek.completed, false);
-  assert.equal(firstWeek.archived, false);
-
-  const archiveBeforeCompletion = await updateWeek(
-    request(`/api/weeks/${firstWeek.id}`, userA, "PUT", { archived: true }),
-    { params: Promise.resolve({ id: String(firstWeek.id) }) },
+  const initial = await json<{ plans: Array<{ id: number; name: string }> }>(
+    await getPlans(request("/api/plans", userA)),
   );
-  assert.equal(archiveBeforeCompletion.status, 409);
+  assert.equal(initial.plans.length, 1);
+  assert.equal(initial.plans[0].name, "La mia scheda");
 
-  const createdExerciseResponse = await createExercise(
+  const createdPlanResponse = await createPlan(
+    request("/api/plans", userA, "POST", { name: "Forza e massa" }),
+  );
+  assert.equal(createdPlanResponse.status, 201);
+  const plan = (await json<{ plan: { id: number; archived: boolean } }>(createdPlanResponse)).plan;
+
+  const weekResponse = await createWeek(
+    request("/api/weeks", userA, "POST", { planId: plan.id, name: "Settimana forza" }),
+  );
+  assert.equal(weekResponse.status, 201);
+  const week = (await json<{ week: { id: number; planId: number } }>(weekResponse)).week;
+  assert.equal(week.planId, plan.id);
+
+  const exerciseResponse = await createExercise(
     request("/api/exercises", userA, "POST", {
-      week: firstWeek.id,
-      name: "Squat",
-      muscleGroup: "Gambe",
-      sets: 4,
-      reps: "8",
-      weight: "60 kg",
-      notes: "Tecnica controllata",
+      week: week.id, name: "Squat", muscleGroup: "Gambe", sets: 4, reps: "8", weight: "60 kg",
     }),
   );
-  assert.equal(createdExerciseResponse.status, 201);
-  const createdExercise = (
-    await json<{ exercise: ExerciseRecord }>(createdExerciseResponse)
-  ).exercise;
+  assert.equal(exerciseResponse.status, 201);
+  const exercise = (await json<{ exercise: { id: number } }>(exerciseResponse)).exercise;
 
-  const completedResponse = await updateWeek(
-    request(`/api/weeks/${firstWeek.id}`, userA, "PUT", { completed: true }),
-    { params: Promise.resolve({ id: String(firstWeek.id) }) },
-  );
-  assert.equal(completedResponse.status, 200);
-  assert.equal(
-    (await json<{ week: WeekRecord }>(completedResponse)).week.completed,
-    true,
-  );
-
-  const afterCompletion = await json<{ weeks: WeekRecord[] }>(
-    await getWeeks(request("/api/weeks", userA)),
-  );
-  assert.equal(
-    afterCompletion.weeks.find((week) => week.id === firstWeek.id)?.completed,
-    true,
-  );
-
-  const archivedResponse = await updateWeek(
-    request(`/api/weeks/${firstWeek.id}`, userA, "PUT", { archived: true }),
-    { params: Promise.resolve({ id: String(firstWeek.id) }) },
+  const archivedResponse = await updatePlan(
+    request(`/api/plans/${plan.id}`, userA, "PUT", { archived: true }), params(plan.id),
   );
   assert.equal(archivedResponse.status, 200);
-  const archivedWeek = (await json<{ week: WeekRecord }>(archivedResponse)).week;
-  assert.equal(archivedWeek.archived, true);
-  assert.ok(archivedWeek.archivedAt);
+  const archived = (await json<{ plan: { archived: boolean; archivedAt: string } }>(archivedResponse)).plan;
+  assert.equal(archived.archived, true);
+  assert.ok(archived.archivedAt);
 
-  const afterArchive = await json<{ weeks: WeekRecord[] }>(
+  const persistedWeeks = await json<{ weeks: Array<{ id: number; planId: number }> }>(
     await getWeeks(request("/api/weeks", userA)),
   );
-  assert.equal(
-    afterArchive.weeks.find((week) => week.id === firstWeek.id)?.archived,
-    true,
-    "la settimana deve restare nell’archivio dopo il ricaricamento",
+  assert.ok(persistedWeeks.weeks.some((item) => item.id === week.id && item.planId === plan.id));
+  const persistedExercises = await json<{ exercises: Array<{ id: number }> }>(
+    await getExercises(request("/api/exercises", userA)),
   );
-  assert.equal(
-    (
-      await json<{ exercises: ExerciseRecord[] }>(
-        await getExercises(request("/api/exercises", userA)),
-      )
-    ).exercises.some((exercise) => exercise.id === createdExercise.id),
-    true,
-    "gli esercizi devono essere conservati nell’archivio",
-  );
+  assert.ok(persistedExercises.exercises.some((item) => item.id === exercise.id));
 
+  const renameArchived = await updatePlan(
+    request(`/api/plans/${plan.id}`, userA, "PUT", { name: "Forza aggiornata" }), params(plan.id),
+  );
+  assert.equal(renameArchived.status, 200, "una scheda archiviata deve poter essere rinominata");
+  const editArchivedWeek = await updateWeek(
+    request(`/api/weeks/${week.id}`, userA, "PUT", { name: "Settimana modificata" }), params(week.id),
+  );
+  assert.equal(editArchivedWeek.status, 200, "le settimane archiviate devono restare modificabili");
   const editArchivedExercise = await updateExercise(
-    request(`/api/exercises/${createdExercise.id}`, userA, "PUT", {
-      week: firstWeek.id,
-      name: "Modifica non consentita",
-      sets: 3,
-    }),
-    { params: Promise.resolve({ id: String(createdExercise.id) }) },
+    request(`/api/exercises/${exercise.id}`, userA, "PUT", {
+      week: week.id, name: "Back squat", muscleGroup: "Gambe", sets: 5, reps: "5", weight: "70 kg",
+    }), params(exercise.id),
   );
-  assert.equal(editArchivedExercise.status, 409);
+  assert.equal(editArchivedExercise.status, 200, "gli esercizi archiviati devono restare modificabili");
 
-  const addToArchivedWeek = await createExercise(
-    request("/api/exercises", userA, "POST", {
-      week: firstWeek.id,
-      name: "Nuovo esercizio",
-      sets: 3,
-    }),
+  const otherUserEdit = await updatePlan(
+    request(`/api/plans/${plan.id}`, userB, "PUT", { name: "Intrusione" }), params(plan.id),
   );
-  assert.equal(addToArchivedWeek.status, 409);
+  assert.equal(otherUserEdit.status, 404);
 
-  const deleteArchivedExercise = await deleteExercise(
-    request(`/api/exercises/${createdExercise.id}`, userA, "DELETE"),
-    { params: Promise.resolve({ id: String(createdExercise.id) }) },
+  const restored = await updatePlan(
+    request(`/api/plans/${plan.id}`, userA, "PUT", { archived: false }), params(plan.id),
   );
-  assert.equal(deleteArchivedExercise.status, 409);
+  assert.equal((await json<{ plan: { archived: boolean; archivedAt: null } }>(restored)).plan.archived, false);
 
-  const copyToArchivedWeek = await copyExercises(
-    request("/api/exercises/copy", userA, "POST", {
-      exerciseIds: [createdExercise.id],
-      targetWeek: firstWeek.id,
-    }),
+  const deleted = await deletePlan(
+    request(`/api/plans/${plan.id}`, userA, "DELETE"), params(plan.id),
   );
-  assert.equal(copyToArchivedWeek.status, 409);
-
-  const deleteArchivedWeek = await deleteWeek(
-    request(`/api/weeks/${firstWeek.id}`, userA, "DELETE"),
-    { params: Promise.resolve({ id: String(firstWeek.id) }) },
-  );
-  assert.equal(deleteArchivedWeek.status, 409);
-
-  const otherUserCannotRestore = await updateWeek(
-    request(`/api/weeks/${firstWeek.id}`, userB, "PUT", { archived: false }),
-    { params: Promise.resolve({ id: String(firstWeek.id) }) },
-  );
-  assert.equal(otherUserCannotRestore.status, 404);
-
-  const restoredResponse = await updateWeek(
-    request(`/api/weeks/${firstWeek.id}`, userA, "PUT", { archived: false }),
-    { params: Promise.resolve({ id: String(firstWeek.id) }) },
-  );
-  assert.equal(restoredResponse.status, 200);
-  const restoredWeek = (await json<{ week: WeekRecord }>(restoredResponse)).week;
-  assert.equal(restoredWeek.archived, false);
-  assert.equal(restoredWeek.archivedAt, null);
-  assert.equal(restoredWeek.completed, true);
-
-  const updatedExerciseResponse = await updateExercise(
-    request(`/api/exercises/${createdExercise.id}`, userA, "PUT", {
-      week: firstWeek.id,
-      name: "Back squat",
-      muscleGroup: "Gambe",
-      sets: 5,
-      reps: "5",
-      weight: "70 kg",
-      notes: "Aggiornato",
-    }),
-    { params: Promise.resolve({ id: String(createdExercise.id) }) },
-  );
-  assert.equal(updatedExerciseResponse.status, 200);
-  assert.equal(
-    (await json<{ exercise: ExerciseRecord }>(updatedExerciseResponse)).exercise
-      .name,
-    "Back squat",
-  );
-
-  const createdWeekResponse = await createWeek(
-    request("/api/weeks", userA, "POST", { name: "Settimana extra" }),
-  );
-  assert.equal(createdWeekResponse.status, 201);
-  const createdWeek = (
-    await json<{ week: WeekRecord }>(createdWeekResponse)
-  ).week;
-
-  const renamedWeekResponse = await updateWeek(
-    request(`/api/weeks/${createdWeek.id}`, userA, "PUT", {
-      name: "Settimana forza",
-    }),
-    { params: Promise.resolve({ id: String(createdWeek.id) }) },
-  );
-  assert.equal(renamedWeekResponse.status, 200);
-  assert.equal(
-    (await json<{ week: WeekRecord }>(renamedWeekResponse)).week.name,
-    "Settimana forza",
-  );
-
-  const deleteExerciseResponse = await deleteExercise(
-    request(`/api/exercises/${createdExercise.id}`, userA, "DELETE"),
-    { params: Promise.resolve({ id: String(createdExercise.id) }) },
-  );
-  assert.equal(deleteExerciseResponse.status, 200);
-  assert.equal(
-    (
-      await json<{ exercises: ExerciseRecord[] }>(
-        await getExercises(request("/api/exercises", userA)),
-      )
-    ).exercises.length,
-    0,
-  );
-
-  const deleteWeekResponse = await deleteWeek(
-    request(`/api/weeks/${firstWeek.id}`, userA, "DELETE"),
-    { params: Promise.resolve({ id: String(firstWeek.id) }) },
-  );
-  assert.equal(deleteWeekResponse.status, 200);
-
-  const afterDeletion = await json<{ weeks: WeekRecord[] }>(
+  assert.equal(deleted.status, 200);
+  const afterDeleteWeeks = await json<{ weeks: Array<{ id: number }> }>(
     await getWeeks(request("/api/weeks", userA)),
   );
-  assert.equal(afterDeletion.weeks.length, 4);
-  assert.equal(
-    afterDeletion.weeks.some((week) => week.id === firstWeek.id),
-    false,
-    "la settimana eliminata non deve ricomparire dopo il ricaricamento",
+  const afterDeleteExercises = await json<{ exercises: Array<{ id: number }> }>(
+    await getExercises(request("/api/exercises", userA)),
   );
+  assert.ok(!afterDeleteWeeks.weeks.some((item) => item.id === week.id));
+  assert.ok(!afterDeleteExercises.exercises.some((item) => item.id === exercise.id));
+});
 
-  const otherUser = await json<{ weeks: WeekRecord[] }>(
-    await getWeeks(request("/api/weeks", userB)),
+test("una settimana può essere creata solo dentro una scheda dello stesso utente", async () => {
+  const otherPlans = await json<{ plans: Array<{ id: number }> }>(
+    await getPlans(request("/api/plans", userB)),
   );
-  assert.equal(otherUser.weeks.length, 4);
-  assert.equal(otherUser.weeks.every((week) => week.completed === false), true);
+  const response = await createWeek(
+    request("/api/weeks", userA, "POST", { planId: otherPlans.plans[0].id, name: "Non consentita" }),
+  );
+  assert.equal(response.status, 404);
 });
