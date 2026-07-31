@@ -64,11 +64,17 @@ export async function POST(request: Request) {
     const values = cleanInput((await request.json()) as ExerciseInput);
     const db = getDb();
     const [targetWeek] = await db
-      .select({ id: weeks.id })
+      .select({ id: weeks.id, archived: weeks.archived })
       .from(weeks)
       .where(and(eq(weeks.id, values.week), eq(weeks.ownerEmail, ownerEmail)))
       .limit(1);
     if (!targetWeek) return Response.json({ error: "La settimana selezionata non esiste più." }, { status: 400 });
+    if (targetWeek.archived) {
+      return Response.json(
+        { error: "La settimana archiviata è in sola lettura. Ripristinala prima di aggiungere esercizi." },
+        { status: 409 },
+      );
+    }
     const [exercise] = await db
       .insert(exercises)
       .values({ ...values, ownerEmail })
