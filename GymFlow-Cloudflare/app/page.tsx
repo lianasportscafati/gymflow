@@ -54,7 +54,8 @@ export default function Home() {
       if (!weekResponse.ok) throw new Error(weekData.error);
       if (!exerciseResponse.ok) throw new Error(exerciseData.error);
       setPlans(planData.plans); setWeeks(weekData.weeks); setExercises(exerciseData.exercises);
-      const first = planData.plans.find((plan: Plan) => !plan.archived);
+      const availablePlans = planData.plans.filter((plan: Plan) => !plan.archived);
+      const first = availablePlans.length === 1 ? availablePlans[0] : undefined;
       setActivePlanId(first?.id ?? null);
       setView("program");
     } catch (cause) {
@@ -120,8 +121,8 @@ export default function Home() {
       setPlans((current) => current.map((plan) => plan.id === data.plan.id ? data.plan : plan));
       setConfirm(null);
       if (archive) {
-        const nextActive = plans.find((plan) => !plan.archived && plan.id !== targetPlan.id) ?? null;
-        setActivePlanId(nextActive?.id ?? null);
+        const remainingActive = plans.filter((plan) => !plan.archived && plan.id !== targetPlan.id);
+        setActivePlanId(remainingActive.length === 1 ? remainingActive[0].id : null);
         setView("program");
       } else {
         setActivePlanId(data.plan.id);
@@ -139,9 +140,10 @@ export default function Home() {
       const remaining = plans.filter((plan) => plan.id !== activePlan.id);
       setPlans(remaining); setWeeks((current) => current.filter((week) => week.planId !== activePlan.id));
       setExercises((current) => current.filter((item) => !removedWeeks.has(item.week)));
+      const remainingActive = remaining.filter((plan) => !plan.archived);
       const next = activePlan.archived
         ? remaining.find((plan) => plan.archived) ?? null
-        : remaining.find((plan) => !plan.archived) ?? null;
+        : remainingActive.length === 1 ? remainingActive[0] : null;
       setActivePlanId(next?.id ?? null); setView(activePlan.archived ? "archive" : "program");
       setConfirm(null); setToast("Scheda eliminata");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Errore"); }
@@ -229,17 +231,38 @@ export default function Home() {
 
       <section className="content">
         <div className="mobile-view-switch" role="tablist">
-          <button className={view === "program" ? "active" : ""} onClick={() => { setView("program"); if (!activePlan || activePlan.archived) selectPlan(activePlans[0]); }}>Schede <span>{activePlans.length}</span></button>
+          <button className={view === "program" ? "active" : ""} onClick={() => { setView("program"); setActivePlanId(activePlans.length === 1 ? activePlans[0].id : null); }}>Schede <span>{activePlans.length}</span></button>
           <button className={view === "archive" ? "active" : ""} onClick={() => { setView("archive"); if (!activePlan?.archived) selectPlan(archivedPlans[0]); }}>Archivio <span>{archivedPlans.length}</span></button>
         </div>
         <header className="topbar">
           <div><p className="eyebrow">{activePlan?.archived ? "SCHEDA ARCHIVIATA · SOLA VISUALIZZAZIONE" : "IL MIO ALLENAMENTO"}</p>
-            <h1>{activePlan ? `Scheda “${activePlan.name}”` : view === "archive" ? "Archivio schede" : "Crea una nuova scheda"}</h1></div>
+            <h1>{activePlan ? `Scheda “${activePlan.name}”` : view === "archive" ? "Archivio schede" : activePlans.length > 1 ? "Le mie schede" : "Crea una nuova scheda"}</h1></div>
           <button className="primary-button desktop-add" onClick={() => { setPlanName(`Scheda ${plans.length + 1}`); setPlanModal("create"); }}><span>＋</span> Nuova scheda</button>
         </header>
 
         {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")}>×</button></div>}
-        {loading ? <div className="state-card"><span className="loader" /><p>Carico le tue schede…</p></div> : !activePlan ? (
+        {loading ? <div className="state-card"><span className="loader" /><p>Carico le tue schede…</p></div> : view === "program" && !activePlan && activePlans.length > 1 ? (
+          <section className="active-plan-picker" aria-label="Schede attive">
+            <p className="plan-picker-intro">Seleziona una Scheda per aprire settimane ed esercizi.</p>
+            <div className="active-plan-grid">
+              {activePlans.map((plan) => {
+                const containedWeeks = weeks.filter((week) => week.planId === plan.id);
+                const weekIds = new Set(containedWeeks.map((week) => week.id));
+                const containedExercises = exercises.filter((exercise) => weekIds.has(exercise.week));
+                return <button className="active-plan-card" key={plan.id} onClick={() => selectPlan(plan)} type="button">
+                  <span className="active-plan-card-icon">▦</span>
+                  <span className="active-plan-card-copy">
+                    <small>SCHEDA ATTIVA</small>
+                    <strong>Scheda “{plan.name}”</strong>
+                    <span>{containedWeeks.length} settimane · {containedExercises.length} esercizi</span>
+                  </span>
+                  <span className="active-plan-card-arrow" aria-hidden="true">→</span>
+                </button>;
+              })}
+            </div>
+            <button className="primary-button plan-picker-create" onClick={() => { setPlanName(`Scheda ${plans.length + 1}`); setPlanModal("create"); }}><span>＋</span> Nuova scheda</button>
+          </section>
+        ) : !activePlan ? (
           <div className="state-card empty"><div className="empty-icon">＋</div><h2>{view === "archive" ? "L’archivio è vuoto" : "Crea la tua prima scheda"}</h2>
             <p>Ogni scheda contiene tutte le sue settimane e tutti gli esercizi.</p>
             {view === "program" && <button className="primary-button" onClick={() => { setPlanName("La mia scheda"); setPlanModal("create"); }}>Crea scheda</button>}</div>
@@ -271,6 +294,7 @@ export default function Home() {
               <div><span className={activePlan.archived ? "archive-status" : "muscle-tag"}>{activePlan.archived ? "ARCHIVIATA" : "SCHEDA ATTIVA"}</span>
                 {activePlan.archived && <small>Archiviata il {dateLabel(activePlan.archivedAt)} · ripristinala per modificarla</small>}</div>
               <div className="week-heading-actions">
+                {!activePlan.archived && activePlans.length > 1 && <button className="all-plans-button" onClick={() => setActivePlanId(null)}>← Tutte le schede</button>}
                 {!activePlan.archived && <button onClick={() => { setPlanName(activePlan.name); setPlanModal("rename"); }}>Rinomina scheda</button>}
                 {activePlan.archived
                   ? <button className="restore-button" onClick={() => void archiveOrRestorePlan(false)}>Ripristina</button>
