@@ -18,7 +18,6 @@ export async function PUT(request: Request, { params }: Params) {
     const payload = (await request.json()) as {
       name?: string;
       completed?: boolean;
-      archived?: boolean;
     };
     const db = getDb();
     const [currentWeek] = await db
@@ -29,22 +28,9 @@ export async function PUT(request: Request, { params }: Params) {
     if (!currentWeek) {
       return Response.json({ error: "Settimana non trovata." }, { status: 404 });
     }
-    if (
-      currentWeek.archived &&
-      payload.archived !== false &&
-      (payload.name !== undefined || payload.completed !== undefined)
-    ) {
-      return Response.json(
-        { error: "La settimana archiviata è in sola lettura. Ripristinala prima di modificarla." },
-        { status: 409 },
-      );
-    }
-
     const update: {
       name?: string;
       completed?: boolean;
-      archived?: boolean;
-      archivedAt?: string | null;
     } = {};
     if (payload.name !== undefined) {
       const name = payload.name.trim();
@@ -58,22 +44,6 @@ export async function PUT(request: Request, { params }: Params) {
     }
     if (typeof payload.completed === "boolean") {
       update.completed = payload.completed;
-    }
-    if (typeof payload.archived === "boolean") {
-      if (payload.archived) {
-        const willBeCompleted = update.completed ?? currentWeek.completed;
-        if (!willBeCompleted) {
-          return Response.json(
-            { error: "Completa la settimana prima di archiviarla." },
-            { status: 409 },
-          );
-        }
-        update.archived = true;
-        update.archivedAt = currentWeek.archivedAt ?? new Date().toISOString();
-      } else {
-        update.archived = false;
-        update.archivedAt = null;
-      }
     }
     if (Object.keys(update).length === 0) {
       return Response.json(
@@ -99,18 +69,12 @@ export async function DELETE(request: Request, { params }: Params) {
     const ownerEmail = getAuthenticatedEmail(request);
     const id = parseId((await params).id);
     const [currentWeek] = await getDb()
-      .select({ archived: weeks.archived })
+      .select({ id: weeks.id })
       .from(weeks)
       .where(and(eq(weeks.id, id), eq(weeks.ownerEmail, ownerEmail)))
       .limit(1);
     if (!currentWeek) {
       return Response.json({ error: "Settimana non trovata." }, { status: 404 });
-    }
-    if (currentWeek.archived) {
-      return Response.json(
-        { error: "Ripristina la settimana dall’archivio prima di eliminarla." },
-        { status: 409 },
-      );
     }
     const database = getDatabase();
     const [, deletedWeek] = await database.batch([
