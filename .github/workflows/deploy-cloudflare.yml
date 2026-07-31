@@ -125,5 +125,20 @@ jobs:
               --file drizzle/0009_week_workouts.sql
           fi
 
+          workout_columns_file="$(mktemp)"
+          npx wrangler d1 execute gymflow-db \
+            --remote \
+            --json \
+            --command "PRAGMA table_info(workouts);" \
+            >"${workout_columns_file}"
+          if jq -e '.. | objects | select(.name? == "completed")' \
+            >/dev/null "${workout_columns_file}"; then
+            echo "Workout completion migration already applied."
+          else
+            npx wrangler d1 execute gymflow-db \
+              --remote \
+              --file drizzle/0010_workout_completed.sql
+          fi
+
       - name: Deploy Worker
         run: npx wrangler deploy
