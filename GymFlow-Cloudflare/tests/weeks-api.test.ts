@@ -10,6 +10,7 @@ import { PUT as updateExercise } from "../app/api/exercises/[id]/route";
 
 const userA = "utente-a@example.com";
 const userB = "utente-b@example.com";
+const userC = "utente-c@example.com";
 let miniflare: Miniflare;
 
 const request = (path: string, email?: string, method = "GET", body?: Record<string, unknown>) => {
@@ -131,4 +132,34 @@ test("una settimana può essere creata solo dentro una scheda dello stesso utent
     request("/api/weeks", userA, "POST", { planId: otherPlans.plans[0].id, name: "Non consentita" }),
   );
   assert.equal(response.status, 404);
+});
+
+test("dopo aver eliminato l'unica scheda l'account resta vuoto e può crearne una nuova", async () => {
+  const initial = await json<{ plans: Array<{ id: number }> }>(
+    await getPlans(request("/api/plans", userC)),
+  );
+  assert.equal(initial.plans.length, 1);
+
+  const deleted = await deletePlan(
+    request(`/api/plans/${initial.plans[0].id}`, userC, "DELETE"),
+    params(initial.plans[0].id),
+  );
+  assert.equal(deleted.status, 200);
+
+  const afterRefresh = await getPlans(request("/api/plans", userC));
+  assert.equal(afterRefresh.status, 200);
+  assert.deepEqual(
+    (await json<{ plans: unknown[] }>(afterRefresh)).plans,
+    [],
+    "il refresh non deve ricreare automaticamente la scheda eliminata",
+  );
+
+  const created = await createPlan(
+    request("/api/plans", userC, "POST", { name: "Nuova scheda" }),
+  );
+  assert.equal(created.status, 201);
+  assert.equal(
+    (await json<{ plan: { name: string } }>(created)).plan.name,
+    "Nuova scheda",
+  );
 });
