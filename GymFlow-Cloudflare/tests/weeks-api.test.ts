@@ -7,6 +7,7 @@ import { GET as getWeeks, POST as createWeek } from "../app/api/weeks/route";
 import { PUT as updateWeek } from "../app/api/weeks/[id]/route";
 import { GET as getExercises, POST as createExercise } from "../app/api/exercises/route";
 import { PUT as updateExercise } from "../app/api/exercises/[id]/route";
+import { POST as copyExercises } from "../app/api/exercises/copy/route";
 import { GET as getWorkouts, POST as createWorkout } from "../app/api/workouts/route";
 import { DELETE as deleteWorkout, PUT as updateWorkout } from "../app/api/workouts/[id]/route";
 import { GET as bootstrap } from "../app/api/bootstrap/route";
@@ -88,6 +89,24 @@ test("scheda completa: creazione, contenuto, archivio modificabile, ripristino e
   assert.equal(exercise.baseWeight, "60");
   assert.equal(exercise.weightPercentage, 57.5);
   assert.equal(exercise.recoverySeconds, 90);
+
+  const targetWeekResponse = await createWeek(
+    request("/api/weeks", userA, "POST", { planId: plan.id, name: "Settimana volume" }),
+  );
+  const targetWeek = (await json<{ week: { id: number } }>(targetWeekResponse)).week;
+  const targetWorkoutResponse = await createWorkout(
+    request("/api/workouts", userA, "POST", { weekId: targetWeek.id, name: "Allenamento A" }),
+  );
+  const targetWorkout = (await json<{ workout: { id: number } }>(targetWorkoutResponse)).workout;
+  const copiedResponse = await copyExercises(request("/api/exercises/copy", userA, "POST", {
+    exerciseIds: [exercise.id], targetWeek: targetWeek.id, targetWorkoutId: targetWorkout.id,
+  }));
+  assert.equal(copiedResponse.status, 201);
+  const copiedExercise = (await json<{ exercises: Array<{ week: number; workoutId: number; recoverySeconds: number; notes: string }> }>(copiedResponse)).exercises[0];
+  assert.equal(copiedExercise.week, targetWeek.id);
+  assert.equal(copiedExercise.workoutId, targetWorkout.id);
+  assert.equal(copiedExercise.recoverySeconds, 90);
+  assert.equal(copiedExercise.notes, "Mantieni il controllo in discesa");
 
   const archivedResponse = await updatePlan(
     request(`/api/plans/${plan.id}`, userA, "PUT", { archived: true }), params(plan.id),
