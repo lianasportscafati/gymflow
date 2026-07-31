@@ -45,17 +45,21 @@ button { color: inherit; }
   text-decoration: none;
 }
 .brand-mark {
-  align-items: center;
-  background: var(--lime);
+  background: #191b18 url("/gymflow-icon.png") center / cover no-repeat;
   border-radius: 8px;
-  color: #151713;
-  display: flex;
-  font-size: 15px;
+  display: block;
+  flex: 0 0 auto;
   height: 32px;
-  justify-content: center;
-  transform: skew(-7deg);
   width: 32px;
 }
+.plan-nav-icon {
+  background: #191b18 url("/gymflow-icon.png") center / cover no-repeat;
+  border-radius: 5px;
+  flex: 0 0 auto;
+  height: 21px;
+  width: 21px;
+}
+.nav-item.archived .plan-nav-icon { filter: grayscale(1); opacity: .72; }
 .side-nav { display: flex; flex-direction: column; gap: 5px; margin-top: 54px; min-height: 0; overflow-y: auto; }
 .nav-item {
   align-items: center;
@@ -547,14 +551,11 @@ input:focus, textarea:focus, select:focus { border-color: #879b59; box-shadow: 0
 }
 .active-plan-card:hover { border-color: #aebc8d; box-shadow: 0 10px 25px rgba(25, 28, 22, .07); transform: translateY(-2px); }
 .active-plan-card-icon {
-  align-items: center;
-  background: var(--lime);
+  background: #191b18 url("/gymflow-icon.png") center / cover no-repeat;
   border-radius: 12px;
-  display: flex;
+  display: block;
   flex: 0 0 auto;
-  font-size: 22px;
   height: 52px;
-  justify-content: center;
   width: 52px;
 }
 .active-plan-card-copy { display: flex; flex: 1; flex-direction: column; gap: 5px; min-width: 0; }

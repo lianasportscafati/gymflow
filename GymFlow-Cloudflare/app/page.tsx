@@ -267,13 +267,13 @@ export default function Home() {
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">G</span><span>GYMFLOW</span></div>
+        <div className="brand"><span className="brand-mark" aria-hidden="true" /><span>GYMFLOW</span></div>
         <nav className="side-nav" aria-label="Schede">
           <p className="nav-caption">LE MIE SCHEDE</p>
-          {activePlans.map((plan) => <button className={`nav-item ${activePlanId === plan.id ? "active" : ""}`} key={plan.id} onClick={() => selectPlan(plan)}>▦ <span className="week-name">{plan.name}</span></button>)}
+          {activePlans.map((plan) => <button className={`nav-item ${activePlanId === plan.id ? "active" : ""}`} key={plan.id} onClick={() => selectPlan(plan)}><span className="plan-nav-icon" aria-hidden="true" /> <span className="week-name">{plan.name}</span></button>)}
           <button className="sidebar-empty" onClick={() => { setPlanName(`Scheda ${plans.length + 1}`); setPlanModal("create"); }}>＋ Nuova scheda</button>
           <p className="nav-caption archive-caption">ARCHIVIO</p>
-          {archivedPlans.map((plan) => <button className={`nav-item ${activePlanId === plan.id ? "active" : ""}`} key={plan.id} onClick={() => selectPlan(plan)}>▤ <span className="week-name">{plan.name}</span></button>)}
+          {archivedPlans.map((plan) => <button className={`nav-item archived ${activePlanId === plan.id ? "active" : ""}`} key={plan.id} onClick={() => selectPlan(plan)}><span className="plan-nav-icon" aria-hidden="true" /> <span className="week-name">{plan.name}</span></button>)}
           {!archivedPlans.length && <p className="sidebar-empty static">Nessuna scheda archiviata</p>}
         </nav>
       </aside>
@@ -299,7 +299,7 @@ export default function Home() {
                 const weekIds = new Set(containedWeeks.map((week) => week.id));
                 const containedExercises = exercises.filter((exercise) => weekIds.has(exercise.week));
                 return <button className="active-plan-card" key={plan.id} onClick={() => selectPlan(plan)} type="button">
-                  <span className="active-plan-card-icon">▦</span>
+                  <span className="active-plan-card-icon" aria-hidden="true" />
                   <span className="active-plan-card-copy">
                     <small>SCHEDA ATTIVA</small>
                     <strong>Scheda “{plan.name}”</strong>
