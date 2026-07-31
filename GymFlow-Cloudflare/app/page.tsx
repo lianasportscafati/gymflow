@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { calculateWeight } from "../lib/weight";
 
 type Plan = { id: number; name: string; position: number; archived: boolean; archivedAt: string | null };
 type Week = { id: number; planId: number; name: string; accent: string; position: number; completed: boolean };
@@ -187,17 +188,20 @@ export default function Home() {
     setEditingExerciseId(exercise?.id ?? null);
     setDraft(exercise ? {
       week: exercise.week, name: exercise.name, muscleGroup: exercise.muscleGroup, sets: exercise.sets,
-      reps: exercise.reps, weight: exercise.weight, baseWeight: exercise.baseWeight,
-      weightPercentage: exercise.weightPercentage, notes: exercise.notes,
+      reps: exercise.reps, weight: exercise.weight,
+      baseWeight: exercise.baseWeight || exercise.weight.replace(/[^\d,.-]/g, ""),
+      weightPercentage: exercise.weightPercentage ?? (exercise.weight ? 100 : null), notes: exercise.notes,
     } : emptyDraft(activeWeek.id));
     setExerciseModal(true);
   };
   const saveExercise = async (event: FormEvent) => {
     event.preventDefault(); setSaving(true); setError("");
     try {
+      const calculatedWeight = calculateWeight(draft.baseWeight, draft.weightPercentage);
+      const payload = { ...draft, weight: calculatedWeight || draft.weight };
       const data = editingExerciseId
-        ? await api(`/api/exercises/${editingExerciseId}`, "PUT", draft)
-        : await api("/api/exercises", "POST", draft);
+        ? await api(`/api/exercises/${editingExerciseId}`, "PUT", payload)
+        : await api("/api/exercises", "POST", payload);
       setExercises((current) => editingExerciseId
         ? current.map((item) => item.id === data.exercise.id ? data.exercise : item)
         : [...current, data.exercise]);
@@ -325,7 +329,10 @@ export default function Home() {
                     <div className="exercise-index">{String(index + 1).padStart(2, "0")}</div><div className="exercise-main">
                       <div className="exercise-title-row"><div><span className="muscle-tag">{exercise.muscleGroup || "ALLENAMENTO"}</span><h3>{exercise.name}</h3></div>
                         {!activePlan.archived && <div className="card-actions"><button aria-label={`Modifica ${exercise.name}`} onClick={() => openExercise(exercise)}>✎</button><button className="delete" aria-label={`Elimina ${exercise.name}`} onClick={() => { setDeleteExerciseId(exercise.id); setConfirm("delete-exercise"); }}>×</button></div>}</div>
-                      <div className="metrics"><div><span>SERIE</span><strong>{exercise.sets}</strong></div><div><span>RIPETIZIONI</span><strong>{exercise.reps}</strong></div><div><span>CARICO</span><strong>{exercise.weight || "—"}</strong></div></div>
+                      <div className="metrics"><div><span>SERIE</span><strong>{exercise.sets}</strong></div><div><span>RIPETIZIONI</span><strong>{exercise.reps}</strong></div>
+                        <div><span>{exercise.baseWeight ? "CARICO BASE" : "CARICO"}</span><strong>{exercise.baseWeight ? `${exercise.baseWeight} kg` : exercise.weight || "—"}</strong></div>
+                        {exercise.baseWeight && exercise.weightPercentage && <div className="percentage-result"><span>{exercise.weightPercentage}% DEL CARICO</span><strong>{calculateWeight(exercise.baseWeight, exercise.weightPercentage)}</strong></div>}
+                      </div>
                       {exercise.notes && <div className="notes"><span>NOTE</span><p>{exercise.notes}</p></div>}
                     </div></article>)}
                     {!activePlan.archived && <button className="add-row" onClick={() => openExercise()}><span>＋</span> Aggiungi esercizio</button>}
@@ -350,7 +357,13 @@ export default function Home() {
           <label>Settimana<select value={draft.week} onChange={(e) => setDraft({ ...draft, week: Number(e.target.value) })}>{planWeeks.map((week) => <option value={week.id} key={week.id}>{week.name}</option>)}</select></label>
           <label>Serie<input type="number" min="1" value={draft.sets} onChange={(e) => setDraft({ ...draft, sets: Number(e.target.value) })} /></label>
           <label>Ripetizioni<input value={draft.reps} onChange={(e) => setDraft({ ...draft, reps: e.target.value })} /></label>
-          <label>Carico<input value={draft.weight} onChange={(e) => setDraft({ ...draft, weight: e.target.value })} placeholder="Es. 60 kg" /></label>
+          <label>Carico base (kg)<input inputMode="decimal" value={draft.baseWeight} onChange={(e) => setDraft({ ...draft, baseWeight: e.target.value })} placeholder="Es. 60" /></label>
+          <label>Percentuale del carico<input min="1" max="100" type="number" value={draft.weightPercentage ?? ""} onChange={(e) => setDraft({ ...draft, weightPercentage: e.target.value ? Number(e.target.value) : null })} placeholder="Es. 60" /></label>
+          <div className="weight-calculation full" aria-live="polite">
+            <span>RISULTATO CALCOLATO</span>
+            <strong>{calculateWeight(draft.baseWeight, draft.weightPercentage) || "Inserisci carico e percentuale"}</strong>
+            {calculateWeight(draft.baseWeight, draft.weightPercentage) && <small>{draft.baseWeight.replace(".", ",")} kg × {draft.weightPercentage}%</small>}
+          </div>
           <label className="full">Note<textarea value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></label>
         </div><ModalActions saving={saving} close={() => setExerciseModal(false)} /></form>
       </Modal>}
