@@ -52,15 +52,20 @@ jobs:
       - name: Apply archive migration when needed
         shell: bash
         run: |
-          schema_json="$(
-            npx wrangler d1 execute gymflow-db \
-              --remote \
-              --json \
-              --command "PRAGMA table_info(weeks);"
-          )"
+          schema_file="$(mktemp)"
+          if ! npx wrangler d1 execute gymflow-db \
+            --remote \
+            --json \
+            --command "PRAGMA table_info(weeks);" \
+            >"${schema_file}"; then
+            echo "::error::Unable to inspect the gymflow-db schema."
+            cat "${schema_file}"
+            exit 1
+          fi
 
+          cat "${schema_file}"
           if jq -e '.. | objects | select(.name? == "archived")' \
-            >/dev/null <<<"${schema_json}"; then
+            >/dev/null "${schema_file}"; then
             echo "Archive migration already applied."
           else
             npx wrangler d1 execute gymflow-db \
