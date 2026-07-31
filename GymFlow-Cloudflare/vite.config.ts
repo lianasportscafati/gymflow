@@ -1,7 +1,9 @@
 import vinext from "vinext";
 import { defineConfig } from "vite";
 
-const GYMFLOW_DATABASE_ID = "10fcc454-c6d7-440a-9087-6e99bcb87fdb";
+const GYMFLOW_DATABASE_ID =
+  process.env.GYMFLOW_DATABASE_ID ??
+  "10fcc454-c6d7-440a-9087-6e99bcb87fdb";
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
