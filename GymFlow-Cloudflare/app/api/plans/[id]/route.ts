@@ -53,6 +53,9 @@ export async function DELETE(request: Request, { params }: Params) {
       database.prepare(
         "DELETE FROM exercises WHERE owner_email = ? AND week IN (SELECT id FROM weeks WHERE plan_id = ? AND owner_email = ?)",
       ).bind(ownerEmail, id, ownerEmail),
+      database.prepare(
+        "DELETE FROM workouts WHERE owner_email = ? AND week_id IN (SELECT id FROM weeks WHERE plan_id = ? AND owner_email = ?)",
+      ).bind(ownerEmail, id, ownerEmail),
       database.prepare("DELETE FROM weeks WHERE plan_id = ? AND owner_email = ?").bind(id, ownerEmail),
       database.prepare("DELETE FROM workout_plans WHERE id = ? AND owner_email = ?").bind(id, ownerEmail),
     ]);
