@@ -5,7 +5,7 @@ import { calculateWeight } from "../lib/weight";
 
 type Plan = { id: number; name: string; position: number; archived: boolean; archivedAt: string | null };
 type Week = { id: number; planId: number; name: string; accent: string; position: number; completed: boolean };
-type Workout = { id: number; weekId: number; name: string; position: number };
+type Workout = { id: number; weekId: number; name: string; position: number; completed: boolean };
 type Exercise = {
   id: number; week: number; workoutId: number | null; name: string; muscleGroup: string; sets: number; reps: string;
   weight: string; baseWeight: string; weightPercentage: number | null; notes: string; position: number;
@@ -31,6 +31,7 @@ export default function Home() {
   const [view, setView] = useState<View>("program");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [updatingWorkoutId, setUpdatingWorkoutId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [planModal, setPlanModal] = useState<"create" | "rename" | null>(null);
@@ -217,6 +218,15 @@ export default function Home() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Errore"); }
     finally { setSaving(false); }
   };
+  const toggleWorkoutCompleted = async () => {
+    if (!activeWorkout) return; setUpdatingWorkoutId(activeWorkout.id); setError("");
+    try {
+      const data = await api(`/api/workouts/${activeWorkout.id}`, "PUT", { completed: !activeWorkout.completed });
+      setWorkouts((current) => current.map((workout) => workout.id === data.workout.id ? data.workout : workout));
+      setToast(data.workout.completed ? "Allenamento completato" : "Allenamento riaperto");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Errore"); }
+    finally { setUpdatingWorkoutId(null); }
+  };
 
   const openExercise = (exercise?: Exercise) => {
     if (!activeWeek || !activeWorkout) return;
@@ -359,12 +369,12 @@ export default function Home() {
                 </div>}
               </div>
               {activeWeek && <div className="workout-tabs" role="tablist" aria-label={`Allenamenti di ${activeWeek.name}`}>
-                {weekWorkouts.map((workout) => <button className={activeWorkout?.id === workout.id ? "active" : ""} key={workout.id} onClick={() => setActiveWorkoutId(workout.id)} role="tab">{workout.name}</button>)}
+                {weekWorkouts.map((workout) => <button className={`${activeWorkout?.id === workout.id ? "active" : ""} ${workout.completed ? "completed" : ""}`} key={workout.id} onClick={() => setActiveWorkoutId(workout.id)} role="tab">{workout.completed ? "✓ " : ""}{workout.name}</button>)}
                 {!activePlan.archived && <button className="workout-add" onClick={() => { setWorkoutName(`Allenamento ${String.fromCharCode(65 + weekWorkouts.length)}`); setWorkoutModal("create"); }}>＋ Allenamento</button>}
               </div>}
               {activeWorkout && <div className="workout-heading">
                 <div><p className="eyebrow">ALLENAMENTO SELEZIONATO</p><h3>{activeWorkout.name}</h3></div>
-                {!activePlan.archived && <div><button onClick={() => { setWorkoutName(activeWorkout.name); setWorkoutModal("rename"); }}>Rinomina</button><button className="delete-week" onClick={() => setConfirm("delete-workout")}>Elimina</button></div>}
+                {!activePlan.archived && <div><label className={`workout-complete-button ${activeWorkout.completed ? "completed" : ""}`}><input aria-label={`Contrassegna ${activeWorkout.name} come completato`} checked={activeWorkout.completed} disabled={updatingWorkoutId === activeWorkout.id} onChange={() => void toggleWorkoutCompleted()} type="checkbox" />{updatingWorkoutId === activeWorkout.id ? "Salvataggio…" : "Completato"}</label><button onClick={() => { setWorkoutName(activeWorkout.name); setWorkoutModal("rename"); }}>Rinomina</button><button className="delete-week" onClick={() => setConfirm("delete-workout")}>Elimina</button></div>}
               </div>}
               {!activeWeek ? <div className="state-card empty"><h3>{activePlan.archived ? "Scheda senza settimane" : "Aggiungi una settimana"}</h3><p>Questa scheda è pronta per essere organizzata.</p>{!activePlan.archived && <button className="primary-button" onClick={() => { setWeekName("Settimana 1"); setWeekModal("create"); }}>Aggiungi settimana</button>}</div>
                 : !activeWorkout ? <div className="state-card empty"><h3>Nessun allenamento</h3><p>{activePlan.archived ? "Questa settimana non contiene allenamenti." : "Crea Allenamento A, Allenamento B o tutti quelli che ti servono."}</p>{!activePlan.archived && <button className="primary-button" onClick={() => { setWorkoutName("Allenamento A"); setWorkoutModal("create"); }}>Crea Allenamento A</button>}</div>
