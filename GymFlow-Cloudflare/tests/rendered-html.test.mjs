@@ -49,6 +49,8 @@ test("includes the full editable workout-plan archive flow in the production cli
   assert.match(bundle, /Archivia scheda/);
   assert.match(bundle, /Archivia tutto/);
   assert.match(bundle, /Ripristina/);
-  assert.match(bundle, /MODIFICABILE/);
-  assert.match(bundle, /puoi continuare a modificarla/);
+  assert.match(bundle, /SOLA VISUALIZZAZIONE/);
+  assert.match(bundle, /Visualizza/);
+  assert.match(bundle, /ripristinala per modificarla/);
+  assert.match(bundle, /Crea una nuova scheda/);
 });
