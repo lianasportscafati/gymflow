@@ -15,6 +15,7 @@ type ExerciseInput = {
   weight?: string;
   baseWeight?: string;
   weightPercentage?: number | null;
+  recoverySeconds?: number;
   notes?: string;
 };
 
@@ -39,6 +40,10 @@ function cleanInput(payload: ExerciseInput) {
     payload.weightPercentage === null || payload.weightPercentage === undefined || !Number.isFinite(rawPercentage)
       ? null
       : Math.max(0.1, Math.min(100, Math.round(rawPercentage * 100) / 100));
+  const recoverySeconds = Number(payload.recoverySeconds ?? 0);
+  if (!Number.isInteger(recoverySeconds) || recoverySeconds < 0 || recoverySeconds > 3600) {
+    throw new Error("Il tempo di recupero deve essere espresso in secondi, da 0 a 3600.");
+  }
   return {
     week,
     workoutId,
@@ -49,6 +54,7 @@ function cleanInput(payload: ExerciseInput) {
     weight: calculateWeight(baseWeight, weightPercentage) || payload.weight?.trim() || "",
     baseWeight,
     weightPercentage,
+    recoverySeconds,
     notes: payload.notes?.trim() ?? "",
     updatedAt: new Date().toISOString(),
   };
