@@ -42,10 +42,21 @@ export const weeks = sqliteTable(
   ],
 );
 
+export const workouts = sqliteTable("workouts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  ownerEmail: text("owner_email").notNull(),
+  weekId: integer("week_id").notNull(),
+  name: text("name").notNull(),
+  position: integer("position").notNull().default(0),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const exercises = sqliteTable("exercises", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   ownerEmail: text("owner_email").notNull(),
   week: integer("week").notNull(),
+  workoutId: integer("workout_id"),
   name: text("name").notNull(),
   muscleGroup: text("muscle_group").notNull().default(""),
   sets: integer("sets").notNull().default(3),

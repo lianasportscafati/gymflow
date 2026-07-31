@@ -75,10 +75,22 @@ export function ensureSchema() {
         )
       `),
       database.prepare(`
+        CREATE TABLE IF NOT EXISTS workouts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+          owner_email TEXT NOT NULL,
+          week_id INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          position INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `),
+      database.prepare(`
         CREATE TABLE IF NOT EXISTS exercises (
           id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
           owner_email TEXT NOT NULL,
           week INTEGER NOT NULL,
+          workout_id INTEGER,
           name TEXT NOT NULL,
           muscle_group TEXT NOT NULL DEFAULT '',
           sets INTEGER NOT NULL DEFAULT 3,
@@ -103,6 +115,9 @@ export function ensureSchema() {
       ),
       database.prepare(
         "CREATE INDEX IF NOT EXISTS exercises_owner_week_idx ON exercises (owner_email, week)",
+      ),
+      database.prepare(
+        "CREATE INDEX IF NOT EXISTS workouts_owner_week_idx ON workouts (owner_email, week_id, position)",
       ),
     ]);
 
@@ -170,6 +185,9 @@ export function ensureSchema() {
     const exerciseTableInfo = await database
       .prepare("PRAGMA table_info(exercises)")
       .all<{ name: string }>();
+    if (!exerciseTableInfo.results.some((column) => column.name === "workout_id")) {
+      await database.prepare("ALTER TABLE exercises ADD COLUMN workout_id INTEGER").run();
+    }
     if (!exerciseTableInfo.results.some((column) => column.name === "base_weight")) {
       await database
         .prepare("ALTER TABLE exercises ADD COLUMN base_weight TEXT NOT NULL DEFAULT ''")
@@ -180,6 +198,26 @@ export function ensureSchema() {
         .prepare("ALTER TABLE exercises ADD COLUMN weight_percentage INTEGER")
         .run();
     }
+    await database.prepare(`
+      INSERT INTO workouts (owner_email, week_id, name, position)
+      SELECT owner_email, id, 'Allenamento A', 1
+      FROM weeks
+      WHERE EXISTS (SELECT 1 FROM exercises WHERE exercises.week = weeks.id)
+        AND NOT EXISTS (SELECT 1 FROM workouts WHERE workouts.week_id = weeks.id)
+    `).run();
+    await database.prepare(`
+      UPDATE exercises
+      SET workout_id = (
+        SELECT id FROM workouts
+        WHERE workouts.week_id = exercises.week
+          AND workouts.owner_email = exercises.owner_email
+        ORDER BY position, id LIMIT 1
+      )
+      WHERE workout_id IS NULL
+    `).run();
+    await database.prepare(
+      "CREATE INDEX IF NOT EXISTS exercises_owner_workout_idx ON exercises (owner_email, workout_id, position)",
+    ).run();
 
     // Mark existing accounts as initialized before the new seeding strategy is
     // used. This prevents deleted default weeks from being recreated.
