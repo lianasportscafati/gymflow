@@ -68,31 +68,12 @@ export async function PUT(request: Request, { params }: Params) {
     if (!currentExercise) {
       return Response.json({ error: "Esercizio non trovato." }, { status: 404 });
     }
-    const [currentWeek] = await db
-      .select({ archived: weeks.archived })
-      .from(weeks)
-      .where(
-        and(eq(weeks.id, currentExercise.week), eq(weeks.ownerEmail, ownerEmail)),
-      )
-      .limit(1);
-    if (currentWeek?.archived) {
-      return Response.json(
-        { error: "La settimana archiviata è in sola lettura. Ripristinala prima di modificare gli esercizi." },
-        { status: 409 },
-      );
-    }
     const [targetWeek] = await db
-      .select({ id: weeks.id, archived: weeks.archived })
+      .select({ id: weeks.id })
       .from(weeks)
       .where(and(eq(weeks.id, values.week), eq(weeks.ownerEmail, ownerEmail)))
       .limit(1);
     if (!targetWeek) return Response.json({ error: "La settimana selezionata non esiste più." }, { status: 400 });
-    if (targetWeek.archived) {
-      return Response.json(
-        { error: "La settimana di destinazione è archiviata. Ripristinala prima di spostare esercizi." },
-        { status: 409 },
-      );
-    }
     const [exercise] = await db
       .update(exercises)
       .set(values)
@@ -118,19 +99,6 @@ export async function DELETE(request: Request, { params }: Params) {
       .limit(1);
     if (!currentExercise) {
       return Response.json({ error: "Esercizio non trovato." }, { status: 404 });
-    }
-    const [currentWeek] = await db
-      .select({ archived: weeks.archived })
-      .from(weeks)
-      .where(
-        and(eq(weeks.id, currentExercise.week), eq(weeks.ownerEmail, ownerEmail)),
-      )
-      .limit(1);
-    if (currentWeek?.archived) {
-      return Response.json(
-        { error: "La settimana archiviata è in sola lettura. Ripristinala prima di eliminare esercizi." },
-        { status: 409 },
-      );
     }
     const [exercise] = await db
       .delete(exercises)
