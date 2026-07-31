@@ -25,12 +25,18 @@ export async function POST(request: Request) {
 
     const db = getDb();
     const [week] = await db
-      .select({ id: weeks.id })
+      .select({ id: weeks.id, archived: weeks.archived })
       .from(weeks)
       .where(and(eq(weeks.id, targetWeek), eq(weeks.ownerEmail, ownerEmail)))
       .limit(1);
     if (!week) {
       return Response.json({ error: "La settimana di destinazione non esiste." }, { status: 404 });
+    }
+    if (week.archived) {
+      return Response.json(
+        { error: "La settimana di destinazione è archiviata. Ripristinala prima di copiarvi esercizi." },
+        { status: 409 },
+      );
     }
 
     const source = await db
