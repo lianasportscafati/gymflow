@@ -365,6 +365,7 @@ h1, h2, h3, p { margin-top: 0; }
   width: 52px;
 }
 .loader { animation: spin .7s linear infinite; border: 3px solid #e1e4dd; border-top-color: #788c4b; border-radius: 50%; height: 27px; width: 27px; }
+.loading-retry { margin-top: 8px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .mobile-view-switch { display: none; }

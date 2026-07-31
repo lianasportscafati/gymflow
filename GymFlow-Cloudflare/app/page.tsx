@@ -48,26 +48,24 @@ export default function Home() {
   const load = async () => {
     setLoading(true); setError("");
     try {
-      const [planResponse, weekResponse, workoutResponse, exerciseResponse] = await Promise.all([
-        fetch("/api/plans", { cache: "no-store" }),
-        fetch("/api/weeks", { cache: "no-store" }),
-        fetch("/api/workouts", { cache: "no-store" }),
-        fetch("/api/exercises", { cache: "no-store" }),
-      ]);
-      const [planData, weekData, workoutData, exerciseData] = await Promise.all([
-        planResponse.json(), weekResponse.json(), workoutResponse.json(), exerciseResponse.json(),
-      ]);
-      if (!planResponse.ok) throw new Error(planData.error);
-      if (!weekResponse.ok) throw new Error(weekData.error);
-      if (!workoutResponse.ok) throw new Error(workoutData.error);
-      if (!exerciseResponse.ok) throw new Error(exerciseData.error);
-      setPlans(planData.plans); setWeeks(weekData.weeks); setWorkouts(workoutData.workouts); setExercises(exerciseData.exercises);
-      const availablePlans = planData.plans.filter((plan: Plan) => !plan.archived);
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 15000);
+      const response = await fetch("/api/bootstrap", {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      window.clearTimeout(timeout);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Errore nel caricamento");
+      setPlans(data.plans); setWeeks(data.weeks); setWorkouts(data.workouts); setExercises(data.exercises);
+      const availablePlans = data.plans.filter((plan: Plan) => !plan.archived);
       const first = availablePlans.length === 1 ? availablePlans[0] : undefined;
       setActivePlanId(first?.id ?? null);
       setView("program");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Errore nel caricamento");
+      setError(cause instanceof DOMException && cause.name === "AbortError"
+        ? "Il caricamento sta impiegando troppo tempo. Riprova."
+        : cause instanceof Error ? cause.message : "Errore nel caricamento");
     } finally { setLoading(false); }
   };
   // The initial request is the external synchronization owned by this effect.
@@ -282,7 +280,7 @@ export default function Home() {
         </header>
 
         {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")}>×</button></div>}
-        {loading ? <div className="state-card"><span className="loader" /><p>Carico le tue schede…</p></div> : view === "program" && !activePlan && activePlans.length > 1 ? (
+        {loading ? <div className="state-card"><span className="loader" /><p>Carico le tue schede…</p><button className="secondary-button loading-retry" onClick={() => void load()}>Riprova</button></div> : view === "program" && !activePlan && activePlans.length > 1 ? (
           <section className="active-plan-picker" aria-label="Schede attive">
             <p className="plan-picker-intro">Seleziona una Scheda per aprire settimane ed esercizi.</p>
             <div className="active-plan-grid">
