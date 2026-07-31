@@ -77,16 +77,16 @@ test("scheda completa: creazione, contenuto, archivio modificabile, ripristino e
   const exerciseResponse = await createExercise(
     request("/api/exercises", userA, "POST", {
       week: week.id, workoutId: workoutA.id, name: "Squat", muscleGroup: "Gambe", sets: 4, reps: "8",
-      baseWeight: "60", weightPercentage: 60,
+      baseWeight: "60", weightPercentage: 57.5, notes: "Mantieni il controllo in discesa",
     }),
   );
   assert.equal(exerciseResponse.status, 201);
   const exercise = (await json<{
     exercise: { id: number; weight: string; baseWeight: string; weightPercentage: number };
   }>(exerciseResponse)).exercise;
-  assert.equal(exercise.weight, "36 kg");
+  assert.equal(exercise.weight, "34,5 kg");
   assert.equal(exercise.baseWeight, "60");
-  assert.equal(exercise.weightPercentage, 60);
+  assert.equal(exercise.weightPercentage, 57.5);
 
   const archivedResponse = await updatePlan(
     request(`/api/plans/${plan.id}`, userA, "PUT", { archived: true }), params(plan.id),

@@ -15,3 +15,8 @@ test("non produce un carico senza entrambi i valori", () => {
 test("calcola il 60 percento di 60 kg", () => {
   assert.equal(calculateWeight("60", 60), "36 kg");
 });
+
+test("calcola percentuali decimali senza arrotondarle a un intero", () => {
+  assert.equal(calculateWeight("60", 57.5), "34,5 kg");
+  assert.equal(calculateWeight("80", 69.3), "55,44 kg");
+});
