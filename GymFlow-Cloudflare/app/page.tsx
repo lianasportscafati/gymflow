@@ -387,7 +387,7 @@ export default function Home() {
                         <div><span>{exercise.baseWeight ? "CARICO BASE" : "CARICO"}</span><strong>{exercise.baseWeight ? `${exercise.baseWeight} kg` : exercise.weight || "—"}</strong></div>
                         {exercise.baseWeight && exercise.weightPercentage && <div className="percentage-result"><span>{exercise.weightPercentage}% DEL CARICO</span><strong>{calculateWeight(exercise.baseWeight, exercise.weightPercentage)}</strong></div>}
                       </div>
-                      {exercise.notes && <div className="notes"><span>NOTE</span><p>{exercise.notes}</p></div>}
+                      {exercise.notes && <div className="notes"><span>✎ NOTE DELL’ESERCIZIO</span><p>{exercise.notes}</p></div>}
                     </div></article>)}
                     {!activePlan.archived && <button className="add-row" onClick={() => openExercise()}><span>＋</span> Aggiungi esercizio</button>}
                   </div>}
@@ -415,7 +415,7 @@ export default function Home() {
           <label>Serie<input type="number" min="1" value={draft.sets} onChange={(e) => setDraft({ ...draft, sets: Number(e.target.value) })} /></label>
           <label>Ripetizioni<input value={draft.reps} onChange={(e) => setDraft({ ...draft, reps: e.target.value })} /></label>
           <label>Carico base (kg)<input inputMode="decimal" value={draft.baseWeight} onChange={(e) => setDraft({ ...draft, baseWeight: e.target.value })} placeholder="Es. 60" /></label>
-          <label>Percentuale del carico<input min="1" max="100" type="number" value={draft.weightPercentage ?? ""} onChange={(e) => setDraft({ ...draft, weightPercentage: e.target.value ? Number(e.target.value) : null })} placeholder="Es. 60" /></label>
+          <label>Percentuale del carico<input inputMode="decimal" min="0.1" max="100" step="0.1" type="number" value={draft.weightPercentage ?? ""} onChange={(e) => setDraft({ ...draft, weightPercentage: e.target.value ? Number(e.target.value) : null })} placeholder="Es. 57.5" /></label>
           <div className="weight-calculation full" aria-live="polite">
             <span>RISULTATO CALCOLATO</span>
             <strong>{calculateWeight(draft.baseWeight, draft.weightPercentage) || "Inserisci carico e percentuale"}</strong>

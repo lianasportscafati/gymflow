@@ -328,8 +328,9 @@ h1, h2, h3, p { margin-top: 0; }
 .metrics > div:last-child { border: 0; }
 .metrics span, .notes span { color: #999d95; display: block; font-size: 8px; font-weight: 800; letter-spacing: .12em; margin-bottom: 5px; }
 .metrics strong { font-size: 13px; }
-.notes { background: #f7f8f4; border-radius: 8px; margin-top: 15px; padding: 10px 12px; }
-.notes p { color: #686d64; font-size: 11px; line-height: 1.55; margin: 0; white-space: pre-wrap; }
+.notes { background: #f1f8df; border: 1px solid #c9df8e; border-left: 5px solid #91b62f; border-radius: 10px; margin-top: 16px; padding: 12px 14px; }
+.notes span { color: #5f742d; font-size: 9px; }
+.notes p { color: #343b29; font-size: 12px; font-weight: 650; line-height: 1.55; margin: 0; white-space: pre-wrap; }
 .add-row {
   background: transparent;
   border: 1px dashed #cfd2ca;
