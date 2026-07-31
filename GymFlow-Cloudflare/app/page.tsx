@@ -8,14 +8,14 @@ type Week = { id: number; planId: number; name: string; accent: string; position
 type Workout = { id: number; weekId: number; name: string; position: number; completed: boolean };
 type Exercise = {
   id: number; week: number; workoutId: number | null; name: string; muscleGroup: string; sets: number; reps: string;
-  weight: string; baseWeight: string; weightPercentage: number | null; notes: string; position: number;
+  weight: string; baseWeight: string; weightPercentage: number | null; recoverySeconds: number; notes: string; position: number;
 };
 type Draft = Omit<Exercise, "id" | "position">;
 type View = "program" | "archive";
 
 const emptyDraft = (week: number, workoutId: number | null): Draft => ({
   week, workoutId, name: "", muscleGroup: "", sets: 3, reps: "10", weight: "",
-  baseWeight: "", weightPercentage: null, notes: "",
+  baseWeight: "", weightPercentage: null, recoverySeconds: 0, notes: "",
 });
 const dateLabel = (value: string | null) =>
   value ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(value)) : "—";
@@ -235,7 +235,7 @@ export default function Home() {
       week: exercise.week, workoutId: exercise.workoutId, name: exercise.name, muscleGroup: exercise.muscleGroup, sets: exercise.sets,
       reps: exercise.reps, weight: exercise.weight,
       baseWeight: exercise.baseWeight || exercise.weight.replace(/[^\d,.-]/g, ""),
-      weightPercentage: exercise.weightPercentage ?? (exercise.weight ? 100 : null), notes: exercise.notes,
+      weightPercentage: exercise.weightPercentage ?? (exercise.weight ? 100 : null), recoverySeconds: exercise.recoverySeconds ?? 0, notes: exercise.notes,
     } : emptyDraft(activeWeek.id, activeWorkout.id));
     setExerciseModal(true);
   };
@@ -394,6 +394,7 @@ export default function Home() {
                         {!activePlan.archived && <div className="card-actions"><button aria-label={`Modifica ${exercise.name}`} onClick={() => openExercise(exercise)}>✎</button><button className="delete" aria-label={`Elimina ${exercise.name}`} onClick={() => { setDeleteExerciseId(exercise.id); setConfirm("delete-exercise"); }}>×</button></div>}</div>
                       <div className="metrics"><div><span>SERIE</span><strong>{exercise.sets}</strong></div><div><span>RIPETIZIONI</span><strong>{exercise.reps}</strong></div>
                         <div><span>{exercise.baseWeight ? "CARICO BASE" : "CARICO"}</span><strong>{exercise.baseWeight ? `${exercise.baseWeight} kg` : exercise.weight || "—"}</strong></div>
+                        <div className="recovery-result"><span>RECUPERO</span><strong>{exercise.recoverySeconds ? `${exercise.recoverySeconds} sec` : "—"}</strong></div>
                         {exercise.baseWeight && exercise.weightPercentage && <div className="percentage-result"><span>{exercise.weightPercentage}% DEL CARICO</span><strong>{calculateWeight(exercise.baseWeight, exercise.weightPercentage)}</strong></div>}
                       </div>
                       {exercise.notes && <div className="notes"><span>✎ NOTE DELL’ESERCIZIO</span><p>{exercise.notes}</p></div>}
@@ -423,6 +424,7 @@ export default function Home() {
           <label>Allenamento<select value={draft.workoutId ?? ""} onChange={(e) => setDraft({ ...draft, workoutId: Number(e.target.value) })}>{weekWorkouts.map((workout) => <option value={workout.id} key={workout.id}>{workout.name}</option>)}</select></label>
           <label>Serie<input type="number" min="1" value={draft.sets} onChange={(e) => setDraft({ ...draft, sets: Number(e.target.value) })} /></label>
           <label>Ripetizioni<input value={draft.reps} onChange={(e) => setDraft({ ...draft, reps: e.target.value })} /></label>
+          <label>Tempo di recupero (secondi)<input min="0" max="3600" step="1" type="number" inputMode="numeric" value={draft.recoverySeconds || ""} onChange={(e) => setDraft({ ...draft, recoverySeconds: e.target.value ? Number(e.target.value) : 0 })} placeholder="Es. 90" /></label>
           <label>Carico base (kg)<input inputMode="decimal" value={draft.baseWeight} onChange={(e) => setDraft({ ...draft, baseWeight: e.target.value })} placeholder="Es. 60" /></label>
           <label>Percentuale del carico<input inputMode="decimal" min="0.1" max="100" step="0.1" type="number" value={draft.weightPercentage ?? ""} onChange={(e) => setDraft({ ...draft, weightPercentage: e.target.value ? Number(e.target.value) : null })} placeholder="Es. 57.5" /></label>
           <div className="weight-calculation full" aria-live="polite">
