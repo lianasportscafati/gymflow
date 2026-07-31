@@ -55,4 +55,9 @@ test("includes the full editable workout-plan archive flow in the production cli
   assert.match(bundle, /Crea una nuova scheda/);
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(pageSource, /\?\?\s*planData\.plans\[0\]/);
+  assert.match(bundle, /Le mie schede/);
+  assert.match(bundle, /Seleziona una Scheda per aprire settimane ed esercizi/);
+  assert.match(bundle, /Tutte le schede/);
+  assert.match(pageSource, /availablePlans\.length === 1/);
+  assert.match(pageSource, /activePlans\.length > 1/);
 });
