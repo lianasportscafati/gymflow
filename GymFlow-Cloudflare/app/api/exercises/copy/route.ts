@@ -61,6 +61,7 @@ export async function POST(request: Request) {
           weight: item.weight,
           baseWeight: item.baseWeight,
           weightPercentage: item.weightPercentage,
+          recoverySeconds: item.recoverySeconds,
           notes: item.notes,
           position: startPosition + index + 1,
         })),
