@@ -1,0 +1,1 @@
+ALTER TABLE exercises ADD COLUMN recovery_seconds INTEGER NOT NULL DEFAULT 0;
