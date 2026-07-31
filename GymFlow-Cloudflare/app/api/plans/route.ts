@@ -1,5 +1,5 @@
 import { asc, eq, max } from "drizzle-orm";
-import { ensureUserWeeks, getAuthenticatedEmail, getDb } from "../../../db";
+import { ensureSchema, ensureUserWeeks, getAuthenticatedEmail, getDb } from "../../../db";
 import { workoutPlans } from "../../../db/schema";
 
 export async function GET(request: Request) {
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const ownerEmail = getAuthenticatedEmail(request);
-    await ensureUserWeeks(ownerEmail);
+    await ensureSchema();
     const payload = (await request.json()) as { name?: string };
     const name = payload.name?.trim() ?? "";
     if (!name) return Response.json({ error: "Inserisci il nome della scheda." }, { status: 400 });
