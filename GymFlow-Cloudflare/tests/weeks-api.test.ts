@@ -77,16 +77,17 @@ test("scheda completa: creazione, contenuto, archivio modificabile, ripristino e
   const exerciseResponse = await createExercise(
     request("/api/exercises", userA, "POST", {
       week: week.id, workoutId: workoutA.id, name: "Squat", muscleGroup: "Gambe", sets: 4, reps: "8",
-      baseWeight: "60", weightPercentage: 57.5, notes: "Mantieni il controllo in discesa",
+      baseWeight: "60", weightPercentage: 57.5, recoverySeconds: 90, notes: "Mantieni il controllo in discesa",
     }),
   );
   assert.equal(exerciseResponse.status, 201);
   const exercise = (await json<{
-    exercise: { id: number; weight: string; baseWeight: string; weightPercentage: number };
+    exercise: { id: number; weight: string; baseWeight: string; weightPercentage: number; recoverySeconds: number };
   }>(exerciseResponse)).exercise;
   assert.equal(exercise.weight, "34,5 kg");
   assert.equal(exercise.baseWeight, "60");
   assert.equal(exercise.weightPercentage, 57.5);
+  assert.equal(exercise.recoverySeconds, 90);
 
   const archivedResponse = await updatePlan(
     request(`/api/plans/${plan.id}`, userA, "PUT", { archived: true }), params(plan.id),
@@ -115,10 +116,11 @@ test("scheda completa: creazione, contenuto, archivio modificabile, ripristino e
   assert.equal(editArchivedWeek.status, 200, "le settimane archiviate devono restare modificabili");
   const editArchivedExercise = await updateExercise(
     request(`/api/exercises/${exercise.id}`, userA, "PUT", {
-      week: week.id, workoutId: workoutA.id, name: "Back squat", muscleGroup: "Gambe", sets: 5, reps: "5", weight: "70 kg",
+      week: week.id, workoutId: workoutA.id, name: "Back squat", muscleGroup: "Gambe", sets: 5, reps: "5", weight: "70 kg", recoverySeconds: 120,
     }), params(exercise.id),
   );
   assert.equal(editArchivedExercise.status, 200, "gli esercizi archiviati devono restare modificabili");
+  assert.equal((await json<{ exercise: { recoverySeconds: number } }>(editArchivedExercise)).exercise.recoverySeconds, 120);
 
   const renamedWorkout = await updateWorkout(
     request(`/api/workouts/${workoutB.id}`, userA, "PUT", { name: "Allenamento B forza" }), params(workoutB.id),
