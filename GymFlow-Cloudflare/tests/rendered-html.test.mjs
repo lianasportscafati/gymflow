@@ -60,4 +60,7 @@ test("includes the full editable workout-plan archive flow in the production cli
   assert.match(bundle, /Tutte le schede/);
   assert.match(pageSource, /availablePlans\.length === 1/);
   assert.match(pageSource, /activePlans\.length > 1/);
+  assert.match(bundle, /Percentuale del carico/);
+  assert.match(bundle, /RISULTATO CALCOLATO/);
+  assert.match(bundle, /% DEL CARICO/);
 });

@@ -11,3 +11,7 @@ test("non produce un carico senza entrambi i valori", () => {
   assert.equal(calculateWeight("", 50), "");
   assert.equal(calculateWeight("67,5", null), "");
 });
+
+test("calcola il 60 percento di 60 kg", () => {
+  assert.equal(calculateWeight("60", 60), "36 kg");
+});
