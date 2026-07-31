@@ -349,6 +349,7 @@ h1, h2, h3, p { margin-top: 0; }
   width: 31px;
 }
 .card-actions button:hover { background: var(--lime); border-color: var(--lime); }
+.card-actions button.copy { color: #53662f; font-size: 17px; }
 .card-actions button.delete:hover { background: #ffe0d7; border-color: #ffc9bb; color: #a02b0d; }
 .metrics { display: flex; gap: 0; margin-top: 17px; }
 .metrics > div { border-right: 1px solid var(--line); min-width: 105px; padding: 0 24px; }
@@ -528,6 +529,8 @@ input:focus, textarea:focus, select:focus { border-color: #879b59; box-shadow: 0
 .modal-actions { display: flex; gap: 9px; justify-content: flex-end; margin-top: 23px; }
 .secondary-button { background: white; border: 1px solid #dfe2da; border-radius: 10px; cursor: pointer; font-size: 12px; font-weight: 700; padding: 12px 16px; }
 .form-error { background: #fff1ed; border-radius: 8px; color: #a83d21; font-size: 11px; margin: 14px 0 -5px; padding: 10px 12px; }
+.copy-intro { color: #6f746b; font-size: 13px; line-height: 1.55; margin: -7px 0 18px; }
+.copy-warning { background: #fff6df; border: 1px solid #ead59c; border-radius: 9px; color: #735c22; font-size: 12px; margin: 14px 0 0; padding: 11px 13px; }
 .toast { background: #1c1f1a; border-radius: 10px; bottom: 25px; color: white; font-size: 12px; left: 50%; padding: 12px 16px; position: fixed; transform: translateX(-50%); z-index: 30; }
 .toast::first-letter { color: var(--lime); }
 .error-banner { background: #8d2e18; border: 0; border-radius: 10px; bottom: 25px; color: white; cursor: pointer; left: 50%; padding: 12px 16px; position: fixed; transform: translateX(-50%); z-index: 30; }

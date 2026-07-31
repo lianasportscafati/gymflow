@@ -42,6 +42,9 @@ export default function Home() {
   const [workoutName, setWorkoutName] = useState("");
   const [exerciseModal, setExerciseModal] = useState(false);
   const [editingExerciseId, setEditingExerciseId] = useState<number | null>(null);
+  const [copyExerciseId, setCopyExerciseId] = useState<number | null>(null);
+  const [copyTargetWeekId, setCopyTargetWeekId] = useState<number | null>(null);
+  const [copyTargetWorkoutId, setCopyTargetWorkoutId] = useState<number | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft(0, null));
   const [confirm, setConfirm] = useState<"archive-plan" | "delete-plan" | "delete-week" | "delete-workout" | "delete-exercise" | null>(null);
   const [deleteExerciseId, setDeleteExerciseId] = useState<number | null>(null);
@@ -93,6 +96,9 @@ export default function Home() {
   const planExerciseCount = exercises.filter((item) => planWeeks.some((week) => week.id === item.week)).length;
   const planSets = exercises.filter((item) => planWeeks.some((week) => week.id === item.week))
     .reduce((sum, item) => sum + item.sets, 0);
+  const copyTargetWeeks = useMemo(() => planWeeks.filter((week) => week.id !== activeWeek?.id), [planWeeks, activeWeek]);
+  const copyTargetWorkouts = useMemo(() => workouts.filter((workout) => workout.weekId === copyTargetWeekId)
+    .sort((a, b) => a.position - b.position), [workouts, copyTargetWeekId]);
 
   const selectPlan = (plan?: Plan) => {
     if (!plan) return;
@@ -254,6 +260,31 @@ export default function Home() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Errore"); }
     finally { setSaving(false); }
   };
+  const openCopyExercise = (exercise: Exercise) => {
+    const destinationWeek = copyTargetWeeks.find((week) => workouts.some((workout) => workout.weekId === week.id)) ?? copyTargetWeeks[0];
+    if (!destinationWeek) {
+      setError("Aggiungi almeno un’altra settimana prima di copiare l’esercizio.");
+      return;
+    }
+    const destinationWorkout = workouts.filter((workout) => workout.weekId === destinationWeek.id)
+      .sort((a, b) => a.position - b.position)[0];
+    setCopyExerciseId(exercise.id);
+    setCopyTargetWeekId(destinationWeek.id);
+    setCopyTargetWorkoutId(destinationWorkout?.id ?? null);
+  };
+  const copyExercise = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!copyExerciseId || !copyTargetWeekId || !copyTargetWorkoutId) return;
+    setSaving(true); setError("");
+    try {
+      const data = await api("/api/exercises/copy", "POST", {
+        exerciseIds: [copyExerciseId], targetWeek: copyTargetWeekId, targetWorkoutId: copyTargetWorkoutId,
+      });
+      setExercises((current) => [...current, ...data.exercises]);
+      setCopyExerciseId(null); setToast("Esercizio copiato nella settimana scelta");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Errore"); }
+    finally { setSaving(false); }
+  };
   const deleteExercise = async () => {
     if (!deleteExerciseId) return; setSaving(true);
     try {
@@ -391,7 +422,7 @@ export default function Home() {
                 : <div className="exercise-list">{workoutExercises.map((exercise, index) => <article className="exercise-card" key={exercise.id}>
                     <div className="exercise-index">{String(index + 1).padStart(2, "0")}</div><div className="exercise-main">
                       <div className="exercise-title-row"><div><span className="muscle-tag">{exercise.muscleGroup || "ALLENAMENTO"}</span><h3>{exercise.name}</h3></div>
-                        {!activePlan.archived && <div className="card-actions"><button aria-label={`Modifica ${exercise.name}`} onClick={() => openExercise(exercise)}>✎</button><button className="delete" aria-label={`Elimina ${exercise.name}`} onClick={() => { setDeleteExerciseId(exercise.id); setConfirm("delete-exercise"); }}>×</button></div>}</div>
+                        {!activePlan.archived && <div className="card-actions"><button className="copy" aria-label={`Copia ${exercise.name} in un’altra settimana`} title="Copia in un’altra settimana" onClick={() => openCopyExercise(exercise)}>⧉</button><button aria-label={`Modifica ${exercise.name}`} onClick={() => openExercise(exercise)}>✎</button><button className="delete" aria-label={`Elimina ${exercise.name}`} onClick={() => { setDeleteExerciseId(exercise.id); setConfirm("delete-exercise"); }}>×</button></div>}</div>
                       <div className="metrics"><div><span>SERIE</span><strong>{exercise.sets}</strong></div><div><span>RIPETIZIONI</span><strong>{exercise.reps}</strong></div>
                         <div><span>{exercise.baseWeight ? "CARICO BASE" : "CARICO"}</span><strong>{exercise.baseWeight ? `${exercise.baseWeight} kg` : exercise.weight || "—"}</strong></div>
                         <div className="recovery-result"><span>RECUPERO</span><strong>{exercise.recoverySeconds ? `${exercise.recoverySeconds} sec` : "—"}</strong></div>
@@ -434,6 +465,24 @@ export default function Home() {
           </div>
           <label className="full">Note<textarea value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></label>
         </div><ModalActions saving={saving} close={() => setExerciseModal(false)} /></form>
+      </Modal>}
+      {copyExerciseId && <Modal title="Copia esercizio" close={() => setCopyExerciseId(null)}>
+        <form onSubmit={copyExercise}>
+          <p className="copy-intro">Scegli la settimana e l’allenamento in cui duplicare l’esercizio. Tutti i dati verranno mantenuti.</p>
+          <div className="form-grid">
+            <label className="full">Settimana di destinazione<select value={copyTargetWeekId ?? ""} onChange={(event) => {
+              const weekId = Number(event.target.value);
+              const firstWorkout = workouts.filter((workout) => workout.weekId === weekId).sort((a, b) => a.position - b.position)[0];
+              setCopyTargetWeekId(weekId); setCopyTargetWorkoutId(firstWorkout?.id ?? null);
+            }}>{copyTargetWeeks.map((week) => <option key={week.id} value={week.id}>{week.name}</option>)}</select></label>
+            <label className="full">Allenamento di destinazione<select value={copyTargetWorkoutId ?? ""} disabled={!copyTargetWorkouts.length} onChange={(event) => setCopyTargetWorkoutId(Number(event.target.value))}>
+              {!copyTargetWorkouts.length && <option value="">Nessun allenamento disponibile</option>}
+              {copyTargetWorkouts.map((workout) => <option key={workout.id} value={workout.id}>{workout.name}</option>)}
+            </select></label>
+          </div>
+          {!copyTargetWorkouts.length && <p className="copy-warning">Prima crea un allenamento nella settimana selezionata.</p>}
+          <div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setCopyExerciseId(null)}>Annulla</button><button className="primary-button" disabled={saving || !copyTargetWorkoutId} type="submit">{saving ? "Copia in corso…" : "Copia esercizio"}</button></div>
+        </form>
       </Modal>}
       {confirm && <Modal title={confirm === "archive-plan" ? "Archiviare la scheda?" : "Conferma eliminazione"} close={() => setConfirm(null)}>
         <p>{confirm === "archive-plan" ? "La Scheda, con tutte le settimane e gli esercizi, passerà nell’archivio. Potrai visualizzarla, modificarla e ripristinarla." : "Questa eliminazione rimuove definitivamente il contenuto selezionato."}</p>
