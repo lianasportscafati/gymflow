@@ -125,6 +125,11 @@ test("scheda completa: creazione, contenuto, archivio modificabile, ripristino e
   );
   assert.equal(renamedWorkout.status, 200);
   assert.equal((await json<{ workout: { name: string } }>(renamedWorkout)).workout.name, "Allenamento B forza");
+  const completedWorkout = await updateWorkout(
+    request(`/api/workouts/${workoutA.id}`, userA, "PUT", { completed: true }), params(workoutA.id),
+  );
+  assert.equal(completedWorkout.status, 200);
+  assert.equal((await json<{ workout: { completed: boolean } }>(completedWorkout)).workout.completed, true);
   const listedWorkouts = await json<{ workouts: Array<{ id: number }> }>(
     await getWorkouts(request("/api/workouts", userA)),
   );
@@ -132,11 +137,12 @@ test("scheda completa: creazione, contenuto, archivio modificabile, ripristino e
   const bootstrapResponse = await bootstrap(request("/api/bootstrap", userA));
   assert.equal(bootstrapResponse.status, 200);
   const bootstrapped = await json<{
-    plans: unknown[]; weeks: unknown[]; workouts: Array<{ id: number }>; exercises: Array<{ id: number }>;
+    plans: unknown[]; weeks: unknown[]; workouts: Array<{ id: number; completed: boolean }>; exercises: Array<{ id: number }>;
   }>(bootstrapResponse);
   assert.ok(bootstrapped.plans.length > 0);
   assert.ok(bootstrapped.weeks.length > 0);
   assert.ok(bootstrapped.workouts.some((item) => item.id === workoutA.id));
+  assert.equal(bootstrapped.workouts.find((item) => item.id === workoutA.id)?.completed, true);
   assert.ok(bootstrapped.exercises.some((item) => item.id === exercise.id));
   const deletedWorkout = await deleteWorkout(
     request(`/api/workouts/${workoutB.id}`, userA, "DELETE"), params(workoutB.id),
