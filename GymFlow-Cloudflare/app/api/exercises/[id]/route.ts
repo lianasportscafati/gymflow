@@ -1,12 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import { ensureSchema, getAuthenticatedEmail, getDb } from "../../../../db";
-import { exercises, weeks } from "../../../../db/schema";
+import { exercises, weeks, workouts } from "../../../../db/schema";
 import { calculateWeight } from "../../../../lib/weight";
 
 type Params = { params: Promise<{ id: string }> };
 
 type ExerciseInput = {
   week?: number;
+  workoutId?: number;
   name?: string;
   muscleGroup?: string;
   sets?: number;
@@ -25,10 +26,12 @@ function parseId(value: string) {
 
 function cleanInput(payload: ExerciseInput) {
   const week = Number(payload.week);
+  const workoutId = Number(payload.workoutId);
   const name = payload.name?.trim() ?? "";
   const sets = Number(payload.sets);
   if (!name) throw new Error("Inserisci il nome dell’esercizio.");
   if (!Number.isInteger(week) || week < 1) throw new Error("Seleziona una settimana valida.");
+  if (!Number.isInteger(workoutId) || workoutId < 1) throw new Error("Seleziona un allenamento valido.");
   if (!Number.isInteger(sets) || sets < 1 || sets > 99) throw new Error("Il numero di serie non è valido.");
   const baseWeight = payload.baseWeight?.trim() ?? "";
   const rawPercentage = Number(payload.weightPercentage);
@@ -38,6 +41,7 @@ function cleanInput(payload: ExerciseInput) {
       : Math.max(1, Math.min(100, Math.round(rawPercentage)));
   return {
     week,
+    workoutId,
     name,
     muscleGroup: payload.muscleGroup?.trim() ?? "",
     sets,
@@ -78,6 +82,9 @@ export async function PUT(request: Request, { params }: Params) {
       .where(and(eq(weeks.id, values.week), eq(weeks.ownerEmail, ownerEmail)))
       .limit(1);
     if (!targetWeek) return Response.json({ error: "La settimana selezionata non esiste più." }, { status: 400 });
+    const [targetWorkout] = await db.select({ id: workouts.id }).from(workouts)
+      .where(and(eq(workouts.id, values.workoutId), eq(workouts.weekId, values.week), eq(workouts.ownerEmail, ownerEmail))).limit(1);
+    if (!targetWorkout) return Response.json({ error: "L’allenamento selezionato non esiste più." }, { status: 400 });
     const [exercise] = await db
       .update(exercises)
       .set(values)
