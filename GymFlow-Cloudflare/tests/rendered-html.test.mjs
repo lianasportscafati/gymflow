@@ -66,4 +66,6 @@ test("includes the full editable workout-plan archive flow in the production cli
   assert.match(bundle, /Allenamento A/);
   assert.match(bundle, /Allenamento selezionato/i);
   assert.match(bundle, /Nuovo allenamento/);
+  assert.match(bundle, /\/api\/bootstrap/);
+  assert.match(bundle, /Il caricamento sta impiegando troppo tempo/);
 });

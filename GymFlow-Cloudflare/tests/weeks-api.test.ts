@@ -9,6 +9,7 @@ import { GET as getExercises, POST as createExercise } from "../app/api/exercise
 import { PUT as updateExercise } from "../app/api/exercises/[id]/route";
 import { GET as getWorkouts, POST as createWorkout } from "../app/api/workouts/route";
 import { DELETE as deleteWorkout, PUT as updateWorkout } from "../app/api/workouts/[id]/route";
+import { GET as bootstrap } from "../app/api/bootstrap/route";
 
 const userA = "utente-a@example.com";
 const userB = "utente-b@example.com";
@@ -128,6 +129,15 @@ test("scheda completa: creazione, contenuto, archivio modificabile, ripristino e
     await getWorkouts(request("/api/workouts", userA)),
   );
   assert.ok(listedWorkouts.workouts.some((item) => item.id === workoutA.id));
+  const bootstrapResponse = await bootstrap(request("/api/bootstrap", userA));
+  assert.equal(bootstrapResponse.status, 200);
+  const bootstrapped = await json<{
+    plans: unknown[]; weeks: unknown[]; workouts: Array<{ id: number }>; exercises: Array<{ id: number }>;
+  }>(bootstrapResponse);
+  assert.ok(bootstrapped.plans.length > 0);
+  assert.ok(bootstrapped.weeks.length > 0);
+  assert.ok(bootstrapped.workouts.some((item) => item.id === workoutA.id));
+  assert.ok(bootstrapped.exercises.some((item) => item.id === exercise.id));
   const deletedWorkout = await deleteWorkout(
     request(`/api/workouts/${workoutB.id}`, userA, "DELETE"), params(workoutB.id),
   );
