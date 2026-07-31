@@ -15,6 +15,8 @@ export const weeks = sqliteTable(
     accent: text("accent").notNull().default("#c8ff5a"),
     position: integer("position").notNull().default(0),
     completed: integer("completed", { mode: "boolean" }).notNull().default(false),
+    archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+    archivedAt: text("archived_at"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [

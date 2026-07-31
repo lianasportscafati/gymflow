@@ -56,6 +56,8 @@ export function ensureSchema() {
           accent TEXT NOT NULL DEFAULT '#c8ff5a',
           position INTEGER NOT NULL DEFAULT 0,
           completed INTEGER NOT NULL DEFAULT 0,
+          archived INTEGER NOT NULL DEFAULT 0,
+          archived_at TEXT,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `),
@@ -96,6 +98,29 @@ export function ensureSchema() {
         if (!message.includes("duplicate column")) throw error;
       }
     }
+    if (!tableInfo.results.some((column) => column.name === "archived")) {
+      try {
+        await database
+          .prepare("ALTER TABLE weeks ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
+          .run();
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        if (!message.includes("duplicate column")) throw error;
+      }
+    }
+    if (!tableInfo.results.some((column) => column.name === "archived_at")) {
+      try {
+        await database.prepare("ALTER TABLE weeks ADD COLUMN archived_at TEXT").run();
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        if (!message.includes("duplicate column")) throw error;
+      }
+    }
+    await database
+      .prepare(
+        "CREATE INDEX IF NOT EXISTS weeks_owner_archive_idx ON weeks (owner_email, archived, archived_at)",
+      )
+      .run();
 
     const exerciseTableInfo = await database
       .prepare("PRAGMA table_info(exercises)")
