@@ -24,4 +24,4 @@ jobs:
       - run: npm run lint
       - run: npm test
       - name: Verify types
-        run: npx tsc --noEmit
+        run: npm run typecheck
