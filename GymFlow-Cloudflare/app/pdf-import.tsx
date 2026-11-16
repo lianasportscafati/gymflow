@@ -20,7 +20,7 @@ export default function PdfImport({close,complete}:{close:()=>void;complete:(id:
  async function save(){if(!draft||!reviewed)return;setBusy(true);setError("");try{
   const valid=validateDraft(draft);setStatus("Salvataggio della nuova scheda…");
   const response=await fetch("/api/import",{method:"POST",headers:{"content-type":"application/json","idempotency-key":requestKey.current},body:JSON.stringify(valid)});
-  const data=await response.json();if(!response.ok)throw new Error(data.error||"Importazione non riuscita");await complete(data.planId);
+  const data=await response.json() as {planId:number;error?:string};if(!response.ok)throw new Error(data.error||"Importazione non riuscita");await complete(data.planId);
  }catch(e){setError(e instanceof Error?e.message:"Errore di connessione: puoi riprovare senza duplicare la scheda");}finally{setBusy(false);setStatus("");}}
  return <div className="modal-backdrop"><section className="modal import-modal" role="dialog" aria-modal="true" aria-labelledby="pdf-title">
   <div className="modal-header"><div><p className="eyebrow">NUOVA SCHEDA</p><h2 id="pdf-title">Importa PDF</h2></div><button disabled={busy} className="close-button" aria-label="Chiudi importazione" onClick={close}>×</button></div>

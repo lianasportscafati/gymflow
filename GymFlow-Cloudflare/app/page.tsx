@@ -16,6 +16,7 @@ type Exercise = {
 };
 type Draft = Omit<Exercise, "id" | "position">;
 type View = "program" | "archive";
+type ApiData = { error?: string; plans: Plan[]; weeks: Week[]; workouts: Workout[]; exercises: Exercise[]; plan: Plan; week: Week; workout: Workout; exercise: Exercise };
 
 const emptyDraft = (week: number, workoutId: number | null): Draft => ({
   week, workoutId, name: "", muscleGroup: "", sets: 3, reps: "10", weight: "",
@@ -65,7 +66,7 @@ export default function Home() {
         signal: controller.signal,
       });
       window.clearTimeout(timeout);
-      const data = await response.json();
+      const data = await response.json() as ApiData;
       if (!response.ok) throw new Error(data.error || "Errore nel caricamento");
       setPlans(data.plans); setWeeks(data.weeks); setWorkouts(data.workouts); setExercises(data.exercises);
       const availablePlans = data.plans.filter((plan: Plan) => !plan.archived);
@@ -117,7 +118,7 @@ export default function Home() {
       method, headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
-    const data = await response.json();
+    const data = await response.json() as ApiData;
     if (!response.ok) throw new Error(data.error || "Operazione non riuscita");
     return data;
   };

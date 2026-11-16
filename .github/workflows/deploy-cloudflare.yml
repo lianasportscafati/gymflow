@@ -2,6 +2,9 @@ name: Deploy GymFlow to Cloudflare
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/deploy-cloudflare.yml"]
 
 permissions:
   contents: read
@@ -70,6 +73,7 @@ jobs:
         run: |
           npm run lint
           npm test
+          npm run typecheck
 
       - name: Apply database migrations when needed
         shell: bash

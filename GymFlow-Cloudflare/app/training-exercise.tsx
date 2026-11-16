@@ -5,9 +5,9 @@ import type {SetLog} from "./api/training/route";
 type Data={max:string;current:SetLog[];previous:SetLog[]};
 export default function TrainingExercise({id,sets,percentage,readOnly}:{id:number;sets:number;percentage:number|null;readOnly:boolean}){
  const [data,setData]=useState<Data|null>(null),[error,setError]=useState(""),[max,setMax]=useState(""),[busy,setBusy]=useState(false);
- async function load(){const response=await fetch(`/api/training?exerciseId=${id}`,{cache:"no-store"});const value=await response.json();if(!response.ok)throw new Error(value.error);setData(value);setMax(value.max);}
- useEffect(()=>{let alive=true;void fetch(`/api/training?exerciseId=${id}`,{cache:"no-store"}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error);if(alive){setData(d);setMax(d.max);}}).catch(e=>{if(alive)setError(e.message);});return()=>{alive=false;};},[id]);
- async function save(values:object){setBusy(true);setError("");try{const r=await fetch("/api/training",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({exerciseId:id,...values})});const d=await r.json();if(!r.ok)throw new Error(d.error);await load();}catch(e){setError(e instanceof Error?e.message:"Salvataggio non riuscito");throw e;}finally{setBusy(false);}}
+ async function load(){const response=await fetch(`/api/training?exerciseId=${id}`,{cache:"no-store"});const value=await response.json() as Data&{error?:string};if(!response.ok)throw new Error(value.error);setData(value);setMax(value.max);}
+ useEffect(()=>{let alive=true;void fetch(`/api/training?exerciseId=${id}`,{cache:"no-store"}).then(async r=>{const d=await r.json() as Data&{error?:string};if(!r.ok)throw new Error(d.error);if(alive){setData(d);setMax(d.max);}}).catch(e=>{if(alive)setError(e.message);});return()=>{alive=false;};},[id]);
+ async function save(values:object){setBusy(true);setError("");try{const r=await fetch("/api/training",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({exerciseId:id,...values})});const d=await r.json() as {error?:string};if(!r.ok)throw new Error(d.error);await load();}catch(e){setError(e instanceof Error?e.message:"Salvataggio non riuscito");throw e;}finally{setBusy(false);}}
  return <div className="training-exercise">
   {error&&<p role="alert" className="training-error">{error}</p>}
   {data&&<>
