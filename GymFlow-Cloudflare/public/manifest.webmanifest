@@ -1,0 +1,4 @@
+{
+ "id":"/","name":"GymFlow — Allenamento personale","short_name":"GymFlow","lang":"it","start_url":"/","scope":"/","display":"standalone","background_color":"#f6f7f3","theme_color":"#191b18","description":"Schede, progressioni e storico allenamenti personali online.",
+ "icons":[{"src":"/gymflow-icon.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"/pwa-maskable.svg","sizes":"any","type":"image/svg+xml","purpose":"maskable"}]
+}

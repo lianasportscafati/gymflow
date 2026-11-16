@@ -1,13 +1,8 @@
+import { decimal, exactPercentage } from "./decimal";
 export function parseWeight(value: string) {
-  const normalized = value.trim().replace(",", ".").replace(/[^\d.-]/g, "");
-  if (!normalized) return null;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
+  try { decimal(value);return Number(value.trim().replace(",",".").replace(/\s*kg$/i,"")); } catch { return null; }
 }
-
 export function calculateWeight(baseWeight: string, percentage: number | null) {
-  const base = parseWeight(baseWeight);
-  if (base === null || percentage === null || percentage <= 0) return "";
-  const result = Math.round(base * percentage) / 100;
-  return `${result.toLocaleString("it-IT", { maximumFractionDigits: 2 })} kg`;
+  if(percentage===null||!Number.isFinite(percentage)||percentage<=0||percentage>100)return "";
+  try { return exactPercentage(baseWeight,String(percentage)).replace(".",",")+" kg"; } catch { return ""; }
 }

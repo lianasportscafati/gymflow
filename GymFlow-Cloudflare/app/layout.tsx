@@ -9,7 +9,9 @@ const manrope = Manrope({
 
 export const metadata: Metadata = {
   title: "GymFlow — Il mio programma",
-  description: "Il tuo programma palestra personale, organizzato in quattro settimane.",
+  description: "Schede, progressioni e storico allenamenti personali online.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "GymFlow", statusBarStyle: "default" },
   icons: {
     icon: [
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
@@ -17,8 +19,10 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
-  other: { "codex-preview": "development" },
+
 };
+
+export const viewport = { themeColor: "#191b18", width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -27,3 +31,4 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     </html>
   );
 }
+

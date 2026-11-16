@@ -2,10 +2,8 @@ import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
 
-test("renders development preview metadata", async () => {
+test("renders installable PWA metadata", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
@@ -30,7 +28,9 @@ test("renders development preview metadata", async () => {
     response.headers.get("content-type") ?? "",
     /^text\/html\b/i,
   );
-  assert.match(await response.text(), developmentPreviewMeta);
+  const html = await response.text();
+  assert.match(html, /manifest.webmanifest/);
+  assert.doesNotMatch(html, /codex-preview/);
 });
 
 test("includes the full editable workout-plan archive flow in the production client", async () => {
@@ -78,3 +78,4 @@ test("includes the full editable workout-plan archive flow in the production cli
   assert.match(bundle, /Allenamento completato/);
   assert.match(bundle, /Contrassegna/);
 });
+

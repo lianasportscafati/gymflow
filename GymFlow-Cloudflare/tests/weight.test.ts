@@ -20,3 +20,9 @@ test("calcola percentuali decimali senza arrotondarle a un intero", () => {
   assert.equal(calculateWeight("60", 57.5), "34,5 kg");
   assert.equal(calculateWeight("80", 69.3), "55,44 kg");
 });
+
+
+test("mantiene tutte le cifre del risultato", () => {
+  assert.equal(calculateWeight("117.5", 62.5), "73,4375 kg");
+  assert.equal(calculateWeight("0.0001", 1), "0,000001 kg");
+});

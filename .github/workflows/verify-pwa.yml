@@ -1,0 +1,27 @@
+name: Verify GymFlow PWA
+on:
+  push:
+    branches: [main]
+    paths: ['GymFlow-Cloudflare/**', '.github/workflows/verify-pwa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: GymFlow-Cloudflare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: GymFlow-Cloudflare/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - name: Verify types
+        run: npx tsc --noEmit

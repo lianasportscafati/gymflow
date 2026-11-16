@@ -31,7 +31,7 @@ function cleanInput(payload: ExerciseInput) {
   const weightPercentage =
     payload.weightPercentage === null || payload.weightPercentage === undefined || !Number.isFinite(rawPercentage)
       ? null
-      : Math.max(0.1, Math.min(100, Math.round(rawPercentage * 100) / 100));
+      : Math.max(0.1, Math.min(100, rawPercentage));
   const recoverySeconds = Number(payload.recoverySeconds ?? 0);
   if (!Number.isInteger(recoverySeconds) || recoverySeconds < 0 || recoverySeconds > 3600) {
     throw new Error("Il tempo di recupero deve essere espresso in secondi, da 0 a 3600.");
@@ -95,3 +95,4 @@ export async function POST(request: Request) {
     return errorResponse(error);
   }
 }
+

@@ -2,6 +2,10 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { calculateWeight } from "../lib/weight";
+import PdfImport from "./pdf-import";
+import PwaControls from "./pwa-controls";
+import TrainingExercise from "./training-exercise";
+import TrainingHistory from "./training-history";
 
 type Plan = { id: number; name: string; position: number; archived: boolean; archivedAt: string | null };
 type Week = { id: number; planId: number; name: string; accent: string; position: number; completed: boolean };
@@ -21,6 +25,8 @@ const dateLabel = (value: string | null) =>
   value ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(value)) : "—";
 
 export default function Home() {
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [pdfImport, setPdfImport] = useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
@@ -329,6 +335,8 @@ export default function Home() {
           <button className="primary-button desktop-add" onClick={() => { setPlanName(`Scheda ${plans.length + 1}`); setPlanModal("create"); }}><span>＋</span> Nuova scheda</button>
         </header>
 
+        <PwaControls />
+        <div className="import-toolbar"><button className="secondary-button" onClick={() => setHistoryOpen(true)}>Storico e backup</button><button className="secondary-button" onClick={() => setPdfImport(true)}>↑ Importa PDF</button><span>Crea una scheda dal documento, con revisione prima del salvataggio.</span></div>
         {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError("")}>×</button></div>}
         {loading ? <div className="state-card"><span className="loader" /><p>Carico le tue schede…</p><button className="secondary-button loading-retry" onClick={() => void load()}>Riprova</button></div> : view === "program" && !activePlan && activePlans.length > 1 ? (
           <section className="active-plan-picker" aria-label="Schede attive">
@@ -418,83 +426,4 @@ export default function Home() {
               </div>}
               {!activeWeek ? <div className="state-card empty"><h3>{activePlan.archived ? "Scheda senza settimane" : "Aggiungi una settimana"}</h3><p>Questa scheda è pronta per essere organizzata.</p>{!activePlan.archived && <button className="primary-button" onClick={() => { setWeekName("Settimana 1"); setWeekModal("create"); }}>Aggiungi settimana</button>}</div>
                 : !activeWorkout ? <div className="state-card empty"><h3>Nessun allenamento</h3><p>{activePlan.archived ? "Questa settimana non contiene allenamenti." : "Crea Allenamento A, Allenamento B o tutti quelli che ti servono."}</p>{!activePlan.archived && <button className="primary-button" onClick={() => { setWorkoutName("Allenamento A"); setWorkoutModal("create"); }}>Crea Allenamento A</button>}</div>
-                : !workoutExercises.length ? <div className="state-card empty"><h3>{activeWorkout.name} è vuoto</h3><p>{activePlan.archived ? "Non contiene esercizi." : "Aggiungi il primo esercizio."}</p>{!activePlan.archived && <button className="primary-button" onClick={() => openExercise()}>Aggiungi esercizio</button>}</div>
-                : <div className="exercise-list">{workoutExercises.map((exercise, index) => <article className="exercise-card" key={exercise.id}>
-                    <div className="exercise-index">{String(index + 1).padStart(2, "0")}</div><div className="exercise-main">
-                      <div className="exercise-title-row"><div><span className="muscle-tag">{exercise.muscleGroup || "ALLENAMENTO"}</span><h3>{exercise.name}</h3></div>
-                        {!activePlan.archived && <div className="card-actions"><button className="copy" aria-label={`Copia ${exercise.name} in un’altra settimana`} title="Copia in un’altra settimana" onClick={() => openCopyExercise(exercise)}>⧉</button><button aria-label={`Modifica ${exercise.name}`} onClick={() => openExercise(exercise)}>✎</button><button className="delete" aria-label={`Elimina ${exercise.name}`} onClick={() => { setDeleteExerciseId(exercise.id); setConfirm("delete-exercise"); }}>×</button></div>}</div>
-                      <div className="metrics"><div><span>SERIE</span><strong>{exercise.sets}</strong></div><div><span>RIPETIZIONI</span><strong>{exercise.reps}</strong></div>
-                        <div><span>{exercise.baseWeight ? "CARICO BASE" : "CARICO"}</span><strong>{exercise.baseWeight ? `${exercise.baseWeight} kg` : exercise.weight || "—"}</strong></div>
-                        <div className="recovery-result"><span>RECUPERO</span><strong>{exercise.recoverySeconds ? `${exercise.recoverySeconds} sec` : "—"}</strong></div>
-                        {exercise.baseWeight && exercise.weightPercentage && <div className="percentage-result"><span>{exercise.weightPercentage}% DEL CARICO</span><strong>{calculateWeight(exercise.baseWeight, exercise.weightPercentage)}</strong></div>}
-                      </div>
-                      {exercise.notes && <div className="notes"><span>✎ NOTE DELL’ESERCIZIO</span><p>{exercise.notes}</p></div>}
-                    </div></article>)}
-                    {!activePlan.archived && <button className="add-row" onClick={() => openExercise()}><span>＋</span> Aggiungi esercizio</button>}
-                  </div>}
-            </section>
-          </>
-        )}
-      </section>
-      {activeWorkout && !activePlan?.archived && <button className="floating-add" aria-label="Nuovo esercizio" onClick={() => openExercise()}>＋</button>}
-      {toast && <div className="toast" role="status">{toast}</div>}
-
-      {planModal && <Modal title={planModal === "create" ? "Nuova scheda" : "Rinomina scheda"} close={() => setPlanModal(null)}>
-        <form onSubmit={savePlan}><label>Nome scheda *<input autoFocus value={planName} onChange={(event) => setPlanName(event.target.value)} placeholder="Es. Forza e massa" /></label><ModalActions saving={saving} close={() => setPlanModal(null)} /></form>
-      </Modal>}
-      {weekModal && <Modal title={weekModal === "create" ? "Nuova settimana" : "Rinomina settimana"} close={() => setWeekModal(null)}>
-        <form onSubmit={saveWeek}><label>Nome settimana *<input autoFocus value={weekName} onChange={(event) => setWeekName(event.target.value)} /></label><ModalActions saving={saving} close={() => setWeekModal(null)} /></form>
-      </Modal>}
-      {workoutModal && <Modal title={workoutModal === "create" ? "Nuovo allenamento" : "Rinomina allenamento"} close={() => setWorkoutModal(null)}>
-        <form onSubmit={saveWorkout}><label>Nome allenamento *<input autoFocus value={workoutName} onChange={(event) => setWorkoutName(event.target.value)} placeholder="Es. Allenamento A" /></label><ModalActions saving={saving} close={() => setWorkoutModal(null)} /></form>
-      </Modal>}
-      {exerciseModal && <Modal title={editingExerciseId ? "Modifica esercizio" : "Nuovo esercizio"} close={() => setExerciseModal(false)}>
-        <form onSubmit={saveExercise}><div className="form-grid">
-          <label className="full">Nome esercizio *<input autoFocus value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
-          <label>Gruppo muscolare<input value={draft.muscleGroup} onChange={(e) => setDraft({ ...draft, muscleGroup: e.target.value })} /></label>
-          <label>Allenamento<select value={draft.workoutId ?? ""} onChange={(e) => setDraft({ ...draft, workoutId: Number(e.target.value) })}>{weekWorkouts.map((workout) => <option value={workout.id} key={workout.id}>{workout.name}</option>)}</select></label>
-          <label>Serie<input type="number" min="1" value={draft.sets} onChange={(e) => setDraft({ ...draft, sets: Number(e.target.value) })} /></label>
-          <label>Ripetizioni<input value={draft.reps} onChange={(e) => setDraft({ ...draft, reps: e.target.value })} /></label>
-          <label>Tempo di recupero (secondi)<input min="0" max="3600" step="1" type="number" inputMode="numeric" value={draft.recoverySeconds || ""} onChange={(e) => setDraft({ ...draft, recoverySeconds: e.target.value ? Number(e.target.value) : 0 })} placeholder="Es. 90" /></label>
-          <label>Carico base (kg)<input inputMode="decimal" value={draft.baseWeight} onChange={(e) => setDraft({ ...draft, baseWeight: e.target.value })} placeholder="Es. 60" /></label>
-          <label>Percentuale del carico<input inputMode="decimal" min="0.1" max="100" step="0.1" type="number" value={draft.weightPercentage ?? ""} onChange={(e) => setDraft({ ...draft, weightPercentage: e.target.value ? Number(e.target.value) : null })} placeholder="Es. 57.5" /></label>
-          <div className="weight-calculation full" aria-live="polite">
-            <span>RISULTATO CALCOLATO</span>
-            <strong>{calculateWeight(draft.baseWeight, draft.weightPercentage) || "Inserisci carico e percentuale"}</strong>
-            {calculateWeight(draft.baseWeight, draft.weightPercentage) && <small>{draft.baseWeight.replace(".", ",")} kg × {draft.weightPercentage}%</small>}
-          </div>
-          <label className="full">Note<textarea value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></label>
-        </div><ModalActions saving={saving} close={() => setExerciseModal(false)} /></form>
-      </Modal>}
-      {copyExerciseId && <Modal title="Copia esercizio" close={() => setCopyExerciseId(null)}>
-        <form onSubmit={copyExercise}>
-          <p className="copy-intro">Scegli la settimana e l’allenamento in cui duplicare l’esercizio. Tutti i dati verranno mantenuti.</p>
-          <div className="form-grid">
-            <label className="full">Settimana di destinazione<select value={copyTargetWeekId ?? ""} onChange={(event) => {
-              const weekId = Number(event.target.value);
-              const firstWorkout = workouts.filter((workout) => workout.weekId === weekId).sort((a, b) => a.position - b.position)[0];
-              setCopyTargetWeekId(weekId); setCopyTargetWorkoutId(firstWorkout?.id ?? null);
-            }}>{copyTargetWeeks.map((week) => <option key={week.id} value={week.id}>{week.name}</option>)}</select></label>
-            <label className="full">Allenamento di destinazione<select value={copyTargetWorkoutId ?? ""} disabled={!copyTargetWorkouts.length} onChange={(event) => setCopyTargetWorkoutId(Number(event.target.value))}>
-              {!copyTargetWorkouts.length && <option value="">Nessun allenamento disponibile</option>}
-              {copyTargetWorkouts.map((workout) => <option key={workout.id} value={workout.id}>{workout.name}</option>)}
-            </select></label>
-          </div>
-          {!copyTargetWorkouts.length && <p className="copy-warning">Prima crea un allenamento nella settimana selezionata.</p>}
-          <div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setCopyExerciseId(null)}>Annulla</button><button className="primary-button" disabled={saving || !copyTargetWorkoutId} type="submit">{saving ? "Copia in corso…" : "Copia esercizio"}</button></div>
-        </form>
-      </Modal>}
-      {confirm && <Modal title={confirm === "archive-plan" ? "Archiviare la scheda?" : "Conferma eliminazione"} close={() => setConfirm(null)}>
-        <p>{confirm === "archive-plan" ? "La Scheda, con tutte le settimane e gli esercizi, passerà nell’archivio. Potrai visualizzarla, modificarla e ripristinarla." : "Questa eliminazione rimuove definitivamente il contenuto selezionato."}</p>
-        <div className="modal-actions"><button className="secondary-button" onClick={() => setConfirm(null)}>Annulla</button><button className={confirm === "archive-plan" ? "primary-button" : "danger-button"} disabled={saving} onClick={() => void (confirm === "archive-plan" ? archiveOrRestorePlan(true) : confirm === "delete-plan" ? deletePlan() : confirm === "delete-week" ? deleteWeek() : confirm === "delete-workout" ? deleteWorkout() : deleteExercise())}>{saving ? "Attendi…" : confirm === "archive-plan" ? "Archivia tutto" : "Elimina"}</button></div>
-      </Modal>}
-    </main>
-  );
-}
-
-function Modal({ title, close, children }: { title: string; close: () => void; children: React.ReactNode }) {
-  return <div className="modal-backdrop" onMouseDown={close}><section className="modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><div className="modal-header"><h2>{title}</h2><button className="close-button" aria-label="Chiudi" onClick={close}>×</button></div>{children}</section></div>;
-}
-function ModalActions({ saving, close }: { saving: boolean; close: () => void }) {
-  return <div className="modal-actions"><button className="secondary-button" type="button" onClick={close}>Annulla</button><button className="primary-button" disabled={saving} type="submit">{saving ? "Salvataggio…" : "Salva"}</button></div>;
-}
+                : !workoutExercises.length ? <div className="state-card empty"><h3>{activeWorkout.name} è vuoto</h3><p>{activePlan.archived ? "Non contiene esercizi." : "Aggiungi il primo esercizio."}</p>{!activePlan.archived && <button className="primary-button" onClick={() => open
